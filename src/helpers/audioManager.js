@@ -4037,6 +4037,20 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       return !!model?.streaming && !!s.tinfoilApiKey;
     }
 
+    // Gemini Live streams without an OpenWhispr account, same as Tinfoil.
+    // Without this branch, a BYOK Gemini Live selection falls through to the
+    // "openwhispr managed cloud only" check below, shouldUseStreaming()
+    // returns false, and dictation silently falls back to the batch path --
+    // which sends this streaming-only model id to the Interactions API,
+    // where it does not exist, producing a transcription error instead of
+    // ever opening the WebSocket this whole feature is for.
+    if (
+      s.cloudTranscriptionProvider === "gemini" &&
+      s.cloudTranscriptionModel === "gemini-3.5-transcribe-live"
+    ) {
+      return !!s.geminiApiKey;
+    }
+
     // The managed-cloud bootstrap only controls OpenWhispr Cloud. A user's
     // BYOK realtime model must not be downgraded because managed dictation is
     // configured for batch processing.
