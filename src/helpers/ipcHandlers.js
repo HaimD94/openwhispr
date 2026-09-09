@@ -4108,8 +4108,8 @@ class IPCHandlers {
       return { success: true };
     });
 
-    ipcMain.handle("start-window-drag", async (event) => {
-      return await this.windowManager.startWindowDrag();
+    ipcMain.handle("start-window-drag", async (event, grabOffset) => {
+      return await this.windowManager.startWindowDrag(grabOffset);
     });
 
     ipcMain.handle("stop-window-drag", async (event) => {

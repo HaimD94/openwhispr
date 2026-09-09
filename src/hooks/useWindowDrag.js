@@ -24,7 +24,16 @@ export const useWindowDrag = () => {
     if (e.button === 0) {
       // Left mouse button
       setIsDragging(true);
-      window.electronAPI.startWindowDrag?.();
+      // Where inside the window the press landed, measured here rather than
+      // derived in the main process from cursor-minus-window-position. That
+      // subtraction reads the window's position when the IPC is handled, and
+      // anything that moves the window in that gap (the size ladder restoring
+      // bounds, a pending placement) poisons the grip: a drag was logged with
+      // a 294px horizontal offset into a 208px-wide window, which put the pill
+      // permanently 294px to the left of the pointer -- the "running away".
+      // clientX/clientY are relative to this window's own content, so they
+      // cannot describe a point outside it however the window moves.
+      window.electronAPI.startWindowDrag?.({ x: e.clientX, y: e.clientY });
       e.preventDefault();
     }
   };

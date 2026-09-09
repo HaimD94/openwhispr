@@ -1422,13 +1422,13 @@ class WindowManager {
     return await this.dragManager.stopWindowDrag();
   }
 
-  async startWindowDrag() {
+  async startWindowDrag(grabOffset = null) {
     // A lookup started by a prior hotkey must never land while the user is
     // taking ownership of the panel position.
     this._mainWindowPlacementCoordinator.cancelPending();
     this._dragStartBounds =
       this.mainWindow && !this.mainWindow.isDestroyed() ? this.mainWindow.getBounds() : null;
-    return await this.dragManager.startWindowDrag();
+    return await this.dragManager.startWindowDrag(null, grabOffset);
   }
 
   async stopWindowDrag() {

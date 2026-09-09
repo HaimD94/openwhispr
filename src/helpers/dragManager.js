@@ -35,10 +35,51 @@ class DragManager {
     this.targetWindow = window;
   }
 
+  /** The grip point, always inside the window. A renderer-measured offset is
+   *  used as given; without one, the legacy subtraction is kept but clamped,
+   *  because a grip outside the window can only be stale geometry and acting on
+   *  it throws the window that far from the pointer. */
+  _resolveGrabOffset(win, cursorPos, windowPos, grabOffset) {
+    let size;
+    try {
+      const bounds = win.getBounds();
+      size = { width: bounds.width, height: bounds.height };
+    } catch {
+      size = null;
+    }
+
+    const finite = (n) => typeof n === "number" && Number.isFinite(n);
+    const fromRenderer = grabOffset && finite(grabOffset.x) && finite(grabOffset.y);
+    const raw = fromRenderer
+      ? { x: grabOffset.x, y: grabOffset.y }
+      : { x: cursorPos.x - windowPos[0], y: cursorPos.y - windowPos[1] };
+
+    if (!size) return raw;
+
+    const clamped = {
+      x: Math.min(Math.max(raw.x, 0), size.width),
+      y: Math.min(Math.max(raw.y, 0), size.height),
+    };
+    if (clamped.x !== raw.x || clamped.y !== raw.y) {
+      debugLogger.info(
+        "Window drag grip fell outside the window; clamped",
+        { raw, clamped, size, fromRenderer },
+        "window-drag"
+      );
+    }
+    return clamped;
+  }
+
   /** Drags the configured target window by default; a caller that owns a
    *  different frameless window (the control panel's manual titlebar) passes
    *  it explicitly for the duration of one drag. */
-  async startWindowDrag(windowOverride = null) {
+  /** `grabOffset` is where inside the window the press landed, as the renderer
+   *  measured it. Prefer it: deriving the same number here from cursor minus
+   *  window position reads the window's position at IPC time, and a window that
+   *  moved in that gap yields a grip point outside its own bounds -- observed as
+   *  a 294px offset into a 208px window, which parks the pill a permanent 294px
+   *  from the pointer for the rest of the gesture. */
+  async startWindowDrag(windowOverride = null, grabOffset = null) {
     const win = windowOverride || this.targetWindow;
     if (!win || win.isDestroyed()) {
       return { success: false, message: "Window not available" };
@@ -52,11 +93,7 @@ class DragManager {
       const cursorPos = screen.getCursorScreenPoint();
       const windowPos = win.getPosition();
 
-      // Calculate offset from cursor to window position
-      this.dragOffset = {
-        x: cursorPos.x - windowPos[0],
-        y: cursorPos.y - windowPos[1],
-      };
+      this.dragOffset = this._resolveGrabOffset(win, cursorPos, windowPos, grabOffset);
 
       // Nothing moves until the pointer proves this is a drag and not a click.
       this.dragStartCursor = { x: cursorPos.x, y: cursorPos.y };
