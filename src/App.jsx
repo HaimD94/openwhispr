@@ -64,7 +64,7 @@ export default function App() {
     useToast();
   const { t } = useTranslation();
   const { hotkey } = useHotkey();
-  const { isDragging, handleMouseDown, handleMouseUp } = useWindowDrag();
+  const { isDragging, handlePointerDown, handleMouseDown, handleMouseUp } = useWindowDrag();
 
   const [dragStartPos, setDragStartPos] = useState(null);
   const [hasDragged, setHasDragged] = useState(false);
@@ -651,6 +651,10 @@ export default function App() {
                       ? t("transcriptionPreview.label")
                       : micTooltip
               }
+              onPointerDown={(e) => {
+                if (anyPanelMounted) return;
+                handlePointerDown(e);
+              }}
               onMouseDown={(e) => {
                 if (anyPanelMounted) {
                   setHasDragged(false);
@@ -680,8 +684,16 @@ export default function App() {
                 setDragStartPos(null);
               }}
               onClick={(e) => {
-                activateVoicePill();
                 e.preventDefault();
+                // The pointer stays over the pill for the whole drag, so the
+                // release fires a click too. hasDragged already distinguishes
+                // the two for the context menu; without the same guard here,
+                // putting the pill down started a dictation.
+                if (hasDragged) {
+                  setHasDragged(false);
+                  return;
+                }
+                activateVoicePill();
               }}
               onKeyDown={(event) => {
                 if (event.repeat || !isVoicePillActivationKey(event.key)) return;

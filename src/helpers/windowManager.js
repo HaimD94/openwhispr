@@ -391,11 +391,17 @@ class WindowManager {
     const height = Math.min(PILL_HIT_HEIGHT, bounds.height);
     const y = bounds.y + bounds.height - height; // every dock class is bottom-anchored
 
+    // Which corner the pill draws itself into is decided by where the window
+    // actually sits (resolveVoicePillDock takes the live horizontal direction),
+    // not by the saved preference. Reading _panelStartPosition here instead put
+    // the box in the opposite corner from the pill for anyone who had dragged
+    // the pill across the display centre: the pill was drawn left, the box was
+    // opened on the right, and clicking the pill did nothing at all.
     let x;
-    if (this._panelStartPosition === "bottom-left") {
-      x = bounds.x;
-    } else if (this._panelStartPosition === "center") {
+    if (this._panelStartPosition === "center") {
       x = bounds.x + Math.round((bounds.width - width) / 2);
+    } else if (this.getMainWindowHorizontalDirection() === "left") {
+      x = bounds.x;
     } else {
       x = bounds.x + bounds.width - width;
     }
@@ -444,7 +450,16 @@ class WindowManager {
     if (interactive === this._pillHitInteractive) return;
     this._pillHitInteractive = interactive;
     try {
-      this.mainWindow.setIgnoreMouseEvents(!interactive, { forward: true });
+      // Deliberately without { forward: true }. Forwarding makes Electron
+      // install a global WH_MOUSE_LL hook so a click-through window can still
+      // see mousemove -- and Windows silently drops a low-level hook whose
+      // process stalls past LowLevelHooksTimeout, which for this app means any
+      // heavy transcription tick. Once dropped, the pill stops responding
+      // entirely until it is recreated. Forwarding also flickers the cursor
+      // (electron#35414) and used to stack duplicate hooks (electron#51064).
+      // None of it is needed here: this poller reads the OS cursor directly and
+      // hands interactivity back before the pointer arrives.
+      this.mainWindow.setIgnoreMouseEvents(!interactive);
     } catch {
       this._pillHitInteractive = true;
     }
