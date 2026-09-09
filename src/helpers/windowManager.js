@@ -52,6 +52,9 @@ const PILL_HIT_HEIGHT = 64;
 // Fast enough that the pill is already interactive by the time a pointer
 // crossing the headroom reaches it, cheap enough to be free (one cursor read).
 const PILL_HIT_POLL_MS = 60;
+// The size-ladder keys that mean "the window is showing the pill". Every other
+// key is a surface the user is meant to click anywhere on.
+const PILL_SIZE_KEYS = new Set(["BASE", "RECORDING"]);
 const { centeredBounds, clampedBounds } = require("./onboardingWindowBounds");
 const { ONBOARDING_DEMO_KINDS, isOnboardingInputAllowed } = require("./onboardingInputPolicy");
 
@@ -117,6 +120,11 @@ class WindowManager {
     // the pill and its siblings, in CSS px relative to the window's content.
     // Null until the first report, and again whenever the pill is hidden.
     this._pillHitRegion = null;
+    this._pillHitRegionReported = false;
+    // Which entry of the size ladder the window is currently showing. The pill
+    // hit-test needs to know "is this the pill or a real surface", and this is
+    // the only answer that cannot be wrong -- see _computePillHitRect.
+    this._mainWindowSizeKey = "BASE";
     this._isDictatingToggle = false;
     this._dictationLifecycleState = DICTATION_LIFECYCLE.IDLE;
     this._dictationInputKind = DICTATION_INPUT_KIND.DICTATION;
@@ -306,6 +314,11 @@ class WindowManager {
    *  content origin. Passing null (pill hidden, or nothing measurable) drops
    *  back to the constant-sized fallback. */
   setPillHitRegion(region) {
+    // A report having arrived at all is the useful signal: from here on, "no
+    // region" means the pill is hidden and nothing should capture, rather than
+    // "the renderer has not spoken yet" -- which is the only case the guessed
+    // fallback box is for.
+    this._pillHitRegionReported = true;
     if (!region) {
       this._pillHitRegion = null;
       return;
@@ -331,11 +344,17 @@ class WindowManager {
       return null;
     }
 
-    // Anything bigger than the pill box is a real surface (menu, toast, error
-    // card, assistant panel) whose whole area is content. Never hit-test those.
-    if (bounds.width > WINDOW_SIZES.BASE.width || bounds.height > WINDOW_SIZES.BASE.height) {
-      return null;
-    }
+    // Anything but the pill is a real surface (menu, toast, error card,
+    // assistant panel) whose whole area is content. Never hit-test those.
+    //
+    // This used to ask whether the window measured larger than WINDOW_SIZES.BASE,
+    // and that test is unusable: getBounds() reports DIP, so on a display at
+    // fractional scaling the round-trip through physical pixels lands a couple
+    // of pixels over. Measured on a 137% display, a window created at 208x120
+    // comes back as 210x122 -- so the pill always looked like a "real surface"
+    // and this whole mechanism silently never ran, leaving the full window
+    // capturing clicks. The size ladder's own key cannot drift that way.
+    if (!PILL_SIZE_KEYS.has(this._mainWindowSizeKey)) return null;
 
     // Preferred path: the box the renderer actually measured. Clamped to the
     // window because a rect reaching outside it can only be a stale report, and
@@ -356,6 +375,13 @@ class WindowManager {
       }
       // A pill measured entirely outside its own window is not something to
       // guess about: nothing is interactive until the next report.
+      return { x: bounds.x, y: bounds.y, width: 0, height: 0 };
+    }
+
+    // The renderer is reporting and says there is no pill (hidden, suppressed
+    // mid-transition). Leaving the guessed box interactive here would put an
+    // invisible wall over the desktop with nothing drawn under it.
+    if (this._pillHitRegionReported) {
       return { x: bounds.x, y: bounds.y, width: 0, height: 0 };
     }
 
@@ -434,6 +460,7 @@ class WindowManager {
     // A region reported by a previous renderer describes a window that no longer
     // exists. Wait for this one to report before trusting any box.
     this._pillHitRegion = null;
+    this._pillHitRegionReported = false;
     this._pillHitInteractive = true;
     this._pillHitTestInterval = setInterval(() => this._updatePillHitTest(), PILL_HIT_POLL_MS);
   }
@@ -444,6 +471,7 @@ class WindowManager {
       this._pillHitTestInterval = null;
     }
     this._pillHitRegion = null;
+    this._pillHitRegionReported = false;
     if (this.mainWindow && !this.mainWindow.isDestroyed() && this._pillHitInteractive === false) {
       try {
         this.mainWindow.setIgnoreMouseEvents(false);
@@ -593,6 +621,10 @@ class WindowManager {
     if (!this.mainWindow || this.mainWindow.isDestroyed()) {
       return { success: false, error: "Main window not available" };
     }
+    // Recorded before the work is done, not after: every return below leaves the
+    // window showing this key, and the hit-test reads it from a timer that must
+    // never observe a stale "this is still the pill" during a grow.
+    this._mainWindowSizeKey = sizeKey;
     // Bounds, display and the work-area fit are all sampled inside the queue:
     // a queued cross-display move would otherwise leave a fit computed at
     // enqueue time describing the display the window is about to leave.

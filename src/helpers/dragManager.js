@@ -66,7 +66,11 @@ class DragManager {
       // Start tracking mouse movements
       this.setupMouseTracking();
 
-      debugLogger.info("Window drag started", undefined, "window-drag");
+      debugLogger.info(
+        "Window drag started",
+        { cursor: cursorPos, windowPos, offset: this.dragOffset },
+        "window-drag"
+      );
       return { success: true };
     } catch (error) {
       console.error("Failed to start window drag:", error);
@@ -75,8 +79,22 @@ class DragManager {
     }
   }
 
-  async stopWindowDrag() {
+  async stopWindowDrag(reason = "renderer") {
     try {
+      // Which path ended the drag, and how long it ran, is the whole diagnosis
+      // when the pill "runs away": a drag that only ever ends by "timeout" means
+      // the release never reached us.
+      if (this.isDragging) {
+        debugLogger.info(
+          "Window drag ending",
+          {
+            reason,
+            durationMs: this.dragStartedAt ? Date.now() - this.dragStartedAt : null,
+            armed: this.dragArmed,
+          },
+          "window-drag"
+        );
+      }
       this.isDragging = false;
       this.activeWindow = null;
       this.dragStartCursor = null;
@@ -99,8 +117,7 @@ class DragManager {
     this.mouseTrackingInterval = setInterval(() => {
       if (!this.isDragging || !this.activeWindow || this.activeWindow.isDestroyed()) return;
       if (this.dragStartedAt && Date.now() - this.dragStartedAt > MAX_DRAG_DURATION_MS) {
-        debugLogger.info("Window drag ended by timeout (no mouseup)", undefined, "window-drag");
-        this.stopWindowDrag();
+        this.stopWindowDrag("timeout");
         return;
       }
       this.updateWindowPosition();
@@ -139,7 +156,7 @@ class DragManager {
       this.activeWindow.setPosition(clamped.x, clamped.y);
     } catch (error) {
       console.error("Error updating window position:", error);
-      this.stopWindowDrag();
+      this.stopWindowDrag("error");
     }
   }
 
@@ -159,7 +176,7 @@ class DragManager {
   }
 
   cleanup() {
-    this.stopWindowDrag();
+    this.stopWindowDrag("cleanup");
     this.targetWindow = null;
   }
 }
