@@ -314,6 +314,17 @@ class UpdateManager {
   }
 
   checkForUpdatesOnStartup() {
+    // This build carries local changes (the Gemini Live transcription
+    // provider) that an official release would silently overwrite, taking
+    // the feature away with no warning. Automatic checks are therefore off
+    // by default in this fork. Set OPENWHISPR_ENABLE_AUTO_UPDATE=1 to
+    // restore upstream behaviour. The manual "check for updates" action in
+    // Settings is unaffected and still works.
+    if (process.env.OPENWHISPR_ENABLE_AUTO_UPDATE !== "1") {
+      console.log("🔄 Automatic update checks disabled (forked build)");
+      return;
+    }
+
     if (process.env.NODE_ENV !== "development") {
       setTimeout(() => {
         this._autoCheckForUpdates("Startup");
