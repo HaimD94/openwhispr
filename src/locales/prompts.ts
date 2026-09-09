@@ -2,6 +2,7 @@ import dePrompts from "./de/prompts.json";
 import enPrompts from "./en/prompts.json";
 import esPrompts from "./es/prompts.json";
 import frPrompts from "./fr/prompts.json";
+import hePrompts from "./he/prompts.json";
 import itPrompts from "./it/prompts.json";
 import jaPrompts from "./ja/prompts.json";
 import ptPrompts from "./pt/prompts.json";
@@ -27,6 +28,7 @@ export const ru: PromptBundle = ruPrompts;
 export const ja: PromptBundle = jaPrompts;
 export const zhCN: PromptBundle = zhCNPrompts;
 export const zhTW: PromptBundle = zhTWPrompts;
+export const he: PromptBundle = hePrompts;
 
 export const PROMPTS_BY_LOCALE = {
   en,
@@ -39,4 +41,5 @@ export const PROMPTS_BY_LOCALE = {
   ja,
   "zh-CN": zhCN,
   "zh-TW": zhTW,
+  he,
 } as const;
