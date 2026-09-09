@@ -70,14 +70,24 @@ export function LiveTranscriptPanel({
       >
         <div>
           {text ? (
-            <p className="select-text whitespace-pre-wrap break-words text-base leading-relaxed text-foreground">
+            // dir="auto" takes the paragraph direction from the transcript's own
+            // first strong character rather than from the app's LTR root. Without
+            // it, dictating Hebrew lays the line out at LTR paragraph level: the
+            // sentence starts on the wrong side, trailing punctuation jumps to the
+            // far end, and an embedded English term reorders the words around it.
+            // The shimmer spans stay bidi-transparent (no isolation), so a split
+            // that lands inside an English phrase does not break it apart.
+            <p
+              dir="auto"
+              className="select-text whitespace-pre-wrap break-words text-base leading-relaxed text-foreground"
+            >
               <span>{shimmerParts.settled}</span>
               {shimmerParts.active && (
                 <span className="inline-response-shimmer">{shimmerParts.active}</span>
               )}
             </p>
           ) : (
-            <p className="text-base leading-relaxed text-muted-foreground/55">
+            <p dir="auto" className="text-base leading-relaxed text-muted-foreground/55">
               {t("transcriptionPreview.waitingForInput")}
             </p>
           )}
@@ -125,7 +135,7 @@ export function LiveTranscriptPanel({
         className="pointer-events-none absolute inset-x-5 top-0 invisible pb-3 pt-8"
         aria-hidden="true"
       >
-        <p className="whitespace-pre-wrap break-words text-base leading-relaxed">
+        <p dir="auto" className="whitespace-pre-wrap break-words text-base leading-relaxed">
           {measurementText || t("transcriptionPreview.waitingForInput")}
         </p>
       </div>
