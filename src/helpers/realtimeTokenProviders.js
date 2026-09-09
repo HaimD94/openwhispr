@@ -72,6 +72,16 @@ const REALTIME_TOKEN_PROVIDERS = {
     return duplicate(streams, apiKey);
   },
 
+  "gemini-live": async ({ environmentManager }, options, streams) => {
+    const apiKey = environmentManager.getGeminiKey();
+    if (!apiKey) {
+      const err = new Error("No Gemini API key configured. Add your key in Settings.");
+      err.code = "NO_API";
+      throw err;
+    }
+    return duplicate(streams, apiKey);
+  },
+
   "openai-realtime": async ({ environmentManager, postServerToken }, options, streams) => {
     if (options.mode === "byok") {
       const apiKey = environmentManager.getOpenAIKey();

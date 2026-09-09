@@ -283,6 +283,13 @@
           "name": "Gemini 3.5 Transcribe",
           "description": "Google's Gemini speech-to-text",
           "descriptionKey": "models.descriptions.transcription.gemini_3_5_transcribe"
+        },
+        {
+          "id": "gemini-3.5-transcribe-live",
+          "name": "Gemini 3.5 Transcribe Live",
+          "description": "Google's Gemini live streaming speech-to-text",
+          "descriptionKey": "models.descriptions.transcription.gemini_3_5_transcribe_live",
+          "streaming": true
         }
       ]
     },

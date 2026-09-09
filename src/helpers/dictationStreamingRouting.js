@@ -12,6 +12,12 @@ export function defaultStreamingProviderName(context) {
 }
 
 export function resolveStreamingProviderName({ settings, context, sttConfig }) {
+  if (
+    settings.cloudTranscriptionProvider === "gemini" &&
+    settings.cloudTranscriptionModel === "gemini-3.5-transcribe-live"
+  ) {
+    return "gemini-live";
+  }
   if (settings.cloudTranscriptionProvider === "tinfoil") {
     return "tinfoil-realtime";
   }
@@ -46,7 +52,7 @@ export function buildStreamingSessionOptions({
   };
   // Tinfoil realtime shows the live preview for normal dictation (#1120), but
   // assistant voice skips it because the Assistant panel owns that surface.
-  if (providerName === "tinfoil-realtime" && !voiceAgentRequested) {
+  if ((providerName === "tinfoil-realtime" || providerName === "gemini-live") && !voiceAgentRequested) {
     options.preview = true;
   }
   return options;

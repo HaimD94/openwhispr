@@ -62,6 +62,7 @@ const { i18nMain, changeLanguage } = require("./i18nMain");
 const DeepgramStreaming = require("./deepgramStreaming");
 const CortiStreaming = require("./cortiStreaming");
 const OpenAIRealtimeStreaming = require("./openaiRealtimeStreaming");
+const GeminiLiveStreaming = require("./geminiLiveStreaming");
 const { getCortiToken } = require("./cortiAuth");
 const { ONBOARDING_DEMO_KINDS } = require("./onboardingInputPolicy");
 const { focusWindowsHotkeyCaptureWindow } = require("./hotkeyCaptureFocus");
@@ -8072,7 +8073,8 @@ class IPCHandlers {
         // default lives here, at the boundary, so the token allowlist stays
         // fail-closed for genuinely unknown providers (#1624).
         const provider = options.provider ?? "openai-realtime";
-        const streaming = new OpenAIRealtimeStreaming();
+        const streaming =
+          provider === "gemini-live" ? new GeminiLiveStreaming() : new OpenAIRealtimeStreaming();
         setupDictationCallbacks(streaming, event);
         // Assign before the token fetch (a real network round trip) so
         // dictation-realtime-send has a live instance to buffer into instead
@@ -8092,6 +8094,13 @@ class IPCHandlers {
               // The capture worklet emits 16kHz PCM; declare the true rate.
               inputRate: 16000,
               createSocket: () => createTinfoilRealtimeSocket({ model, apiKey }),
+            });
+          } else if (provider === "gemini-live") {
+            await streaming.connect({
+              apiKey,
+              model: options.model || "models/gemini-3.5-transcribe-live",
+              language: options.language,
+              keyterms: options.keyterms,
             });
           } else {
             await streaming.connect({

@@ -393,6 +393,7 @@ const STREAMING_PROVIDERS = {
     onSessionEnd: (cb) => window.electronAPI.onCortiSessionEnd(cb),
   },
   "tinfoil-realtime": makeDictationRealtimeProvider("tinfoil-realtime"),
+  "gemini-live": makeDictationRealtimeProvider("gemini-live"),
 };
 
 // Batch providers that must transcribe via a main-process proxy (CORS,
