@@ -1816,6 +1816,9 @@ declare global {
       startControlPanelDrag: () => Promise<void>;
       stopControlPanelDrag: () => Promise<void>;
       setMainWindowInteractivity: (interactive: boolean) => Promise<void>;
+      setPillHitRegion: (
+        region: { x: number; y: number; width: number; height: number } | null
+      ) => void;
       setNotificationInteractivity: (interactive: boolean) => Promise<void>;
       resizeMainWindow: (
         sizeKey:

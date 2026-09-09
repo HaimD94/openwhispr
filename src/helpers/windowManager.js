@@ -113,6 +113,10 @@ class WindowManager {
     this._floatingIconAutoHide = false;
     this._panelStartPosition = "bottom-right";
     this._activeHorizontalDirection = null;
+    // Reported by the renderer (see setPillHitRegion): the real on-screen box of
+    // the pill and its siblings, in CSS px relative to the window's content.
+    // Null until the first report, and again whenever the pill is hidden.
+    this._pillHitRegion = null;
     this._isDictatingToggle = false;
     this._dictationLifecycleState = DICTATION_LIFECYCLE.IDLE;
     this._dictationInputKind = DICTATION_INPUT_KIND.DICTATION;
@@ -292,6 +296,28 @@ class WindowManager {
   // much worse than leaving some headroom blocked, so anything unexpected —
   // an open panel, a window larger than the pill box, a missing display —
   // keeps the old always-interactive behaviour.
+  //
+  // The renderer reports the pill's real box (setPillHitRegion) and that is what
+  // this uses when available. The constant-sized fallback below is a guess made
+  // from the widest state the pill can reach, so it blocks roughly six times the
+  // area of an idle pill; it exists only for the frames before the first report.
+
+  /** Renderer-reported interactive box, in CSS px relative to the window's
+   *  content origin. Passing null (pill hidden, or nothing measurable) drops
+   *  back to the constant-sized fallback. */
+  setPillHitRegion(region) {
+    if (!region) {
+      this._pillHitRegion = null;
+      return;
+    }
+    const { x, y, width, height } = region;
+    const valid =
+      [x, y, width, height].every((n) => typeof n === "number" && Number.isFinite(n)) &&
+      width > 0 &&
+      height > 0;
+    this._pillHitRegion = valid ? { x, y, width, height } : null;
+  }
+
   _computePillHitRect() {
     if (!this.mainWindow || this.mainWindow.isDestroyed()) return null;
 
@@ -309,6 +335,28 @@ class WindowManager {
     // card, assistant panel) whose whole area is content. Never hit-test those.
     if (bounds.width > WINDOW_SIZES.BASE.width || bounds.height > WINDOW_SIZES.BASE.height) {
       return null;
+    }
+
+    // Preferred path: the box the renderer actually measured. Clamped to the
+    // window because a rect reaching outside it can only be a stale report, and
+    // an over-wide rect would silently restore the wall this exists to remove.
+    const region = this._pillHitRegion;
+    if (region) {
+      const left = Math.max(0, Math.min(region.x, bounds.width));
+      const top = Math.max(0, Math.min(region.y, bounds.height));
+      const right = Math.max(left, Math.min(region.x + region.width, bounds.width));
+      const bottom = Math.max(top, Math.min(region.y + region.height, bounds.height));
+      if (right > left && bottom > top) {
+        return {
+          x: bounds.x + left,
+          y: bounds.y + top,
+          width: right - left,
+          height: bottom - top,
+        };
+      }
+      // A pill measured entirely outside its own window is not something to
+      // guess about: nothing is interactive until the next report.
+      return { x: bounds.x, y: bounds.y, width: 0, height: 0 };
     }
 
     // Pill (98 recording) + gap (8) + cancel (28) = 134, plus margin for the
@@ -333,6 +381,22 @@ class WindowManager {
     if (process.platform !== "win32") return;
     if (!this.mainWindow || this.mainWindow.isDestroyed()) return;
     if (!this.mainWindow.isVisible()) return;
+
+    // Never re-hit-test mid-drag. The window is chasing the cursor, so the
+    // cursor can fall outside the pill rect for a frame; going click-through
+    // there costs the renderer its mouseup, stopWindowDrag() is never called,
+    // and the window follows the cursor forever -- it "drags itself" and can
+    // shoot across the screen. The press already proved intent; hold
+    // interactivity for the whole gesture.
+    if (this.dragManager?.isDragActive?.()) {
+      if (this._pillHitInteractive !== true) {
+        this._pillHitInteractive = true;
+        try {
+          this.mainWindow.setIgnoreMouseEvents(false);
+        } catch {}
+      }
+      return;
+    }
 
     // An open panel owns its whole surface.
     const rect = this._assistantPanelOpen ? null : this._computePillHitRect();
@@ -367,6 +431,9 @@ class WindowManager {
       return;
     }
     if (this._pillHitTestInterval) return;
+    // A region reported by a previous renderer describes a window that no longer
+    // exists. Wait for this one to report before trusting any box.
+    this._pillHitRegion = null;
     this._pillHitInteractive = true;
     this._pillHitTestInterval = setInterval(() => this._updatePillHitTest(), PILL_HIT_POLL_MS);
   }
@@ -376,6 +443,7 @@ class WindowManager {
       clearInterval(this._pillHitTestInterval);
       this._pillHitTestInterval = null;
     }
+    this._pillHitRegion = null;
     if (this.mainWindow && !this.mainWindow.isDestroyed() && this._pillHitInteractive === false) {
       try {
         this.mainWindow.setIgnoreMouseEvents(false);

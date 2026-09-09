@@ -12,6 +12,7 @@ import { useMainWindowSizeOwner } from "./hooks/useMainWindowSizeOwner";
 import { useMainProcessNotifications } from "./hooks/useMainProcessNotifications";
 import { useListeningEntrancePhase } from "./hooks/useListeningEntrancePhase";
 import { useWindowResizeCompensation } from "./hooks/useWindowResizeCompensation";
+import usePillHitRegion from "./hooks/usePillHitRegion";
 import { useSettingsStore } from "./stores/settingsStore";
 import { isAgentAllowed } from "./stores/policyRules";
 import { usePolicyStore } from "./stores/policyStore";
@@ -577,6 +578,10 @@ export default function App() {
     hasLiveActivity: pillHasLiveActivity,
   });
 
+  // Tells the main process where the pill really is, so only the pill blocks
+  // clicks and the empty headroom around it stays click-through.
+  usePillHitRegion(!pillVisuallySuppressed);
+
   return (
     <div className="dictation-window">
       {/* The panel footer can hide this pill, but never unmounts it. */}
@@ -593,6 +598,7 @@ export default function App() {
       >
         <div
           className="assistant-pill-presence relative flex items-center"
+          data-pill-hit=""
           data-assistant-footer-phase={assistant.open ? assistant.footerPhase : undefined}
           data-horizontal-direction={voiceHorizontalDirection}
           style={{

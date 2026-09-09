@@ -1391,6 +1391,15 @@ class IPCHandlers {
       return this.windowManager.getMainWindowHorizontalDirection();
     });
 
+    // Fire-and-forget: this arrives on every pill resize and must never make the
+    // renderer wait. Only the main window may speak for the pill's geometry.
+    ipcMain.on("set-pill-hit-region", (event, region) => {
+      const mainWindow = this.windowManager?.mainWindow;
+      if (!mainWindow || mainWindow.isDestroyed()) return;
+      if (event.sender !== mainWindow.webContents) return;
+      this.windowManager.setPillHitRegion(region || null);
+    });
+
     ipcMain.handle("set-notification-interactivity", (event, interactive) => {
       this.windowManager.setNotificationInteractivity(event.sender, Boolean(interactive));
       return { success: true };

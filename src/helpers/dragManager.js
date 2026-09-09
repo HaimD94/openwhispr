@@ -10,6 +10,13 @@ const debugLogger = require("./debugLogger");
 // 5 leaves a little room for a heavy click without feeling sticky.
 const DRAG_START_THRESHOLD_PX = 5;
 
+// Backstop for a drag whose mouseup never arrived (the renderer went
+// click-through mid-gesture, the window lost focus to a system dialog, a
+// crashed renderer). Without it the tracker keeps the window glued to the
+// cursor until the app restarts, which is far worse than ending a genuine
+// drag early. No real drag of a small floating pill lasts a minute.
+const MAX_DRAG_DURATION_MS = 60000;
+
 class DragManager {
   constructor() {
     this.isDragging = false;
@@ -21,6 +28,7 @@ class DragManager {
     // threshold around it, at which point the drag is "armed" for good.
     this.dragStartCursor = null;
     this.dragArmed = false;
+    this.dragStartedAt = null;
   }
 
   setTargetWindow(window) {
@@ -53,6 +61,7 @@ class DragManager {
       // Nothing moves until the pointer proves this is a drag and not a click.
       this.dragStartCursor = { x: cursorPos.x, y: cursorPos.y };
       this.dragArmed = false;
+      this.dragStartedAt = Date.now();
 
       // Start tracking mouse movements
       this.setupMouseTracking();
@@ -72,6 +81,7 @@ class DragManager {
       this.activeWindow = null;
       this.dragStartCursor = null;
       this.dragArmed = false;
+      this.dragStartedAt = null;
       this.stopMouseTracking();
       debugLogger.info("Window drag stopped", undefined, "window-drag");
       return { success: true };
@@ -87,9 +97,13 @@ class DragManager {
     }
 
     this.mouseTrackingInterval = setInterval(() => {
-      if (this.isDragging && this.activeWindow && !this.activeWindow.isDestroyed()) {
-        this.updateWindowPosition();
+      if (!this.isDragging || !this.activeWindow || this.activeWindow.isDestroyed()) return;
+      if (this.dragStartedAt && Date.now() - this.dragStartedAt > MAX_DRAG_DURATION_MS) {
+        debugLogger.info("Window drag ended by timeout (no mouseup)", undefined, "window-drag");
+        this.stopWindowDrag();
+        return;
       }
+      this.updateWindowPosition();
     }, 16); // ~60fps
   }
 

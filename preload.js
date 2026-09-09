@@ -524,6 +524,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   ackMainWindowResizeMask: (token) => ipcRenderer.send("main-window-resize-mask-ready", token),
   setMainWindowInteractivity: (interactive) =>
     ipcRenderer.invoke("set-main-window-interactivity", interactive),
+  setPillHitRegion: (region) => ipcRenderer.send("set-pill-hit-region", region),
   setNotificationInteractivity: (interactive) =>
     ipcRenderer.invoke("set-notification-interactivity", interactive),
   resizeMainWindow: (sizeKey) => ipcRenderer.invoke("resize-main-window", sizeKey),
