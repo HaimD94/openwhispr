@@ -296,7 +296,15 @@ class GeminiLiveStreaming {
       if (event.error) {
         const errMsg = event.error.message || `${this.providerLabel} error`;
         debugLogger.error(`${this.providerLabel} server error event`, { error: event.error });
-        if (!this.isDisconnecting) {
+        // A protocol error arriving before setupComplete means the session
+        // never came up -- reject connect() now instead of leaving the
+        // caller waiting out the full WEBSOCKET_TIMEOUT_MS for a generic
+        // timeout that would hide the real error.
+        if (this.pendingReject) {
+          this.pendingReject(new Error(errMsg));
+          this.pendingReject = null;
+          this.pendingResolve = null;
+        } else if (!this.isDisconnecting) {
           this.onError?.(new Error(errMsg));
         }
       }
@@ -322,15 +330,20 @@ class GeminiLiveStreaming {
     this.isDisconnecting = true;
 
     if (this.ws.readyState === WebSocket.CONNECTING) {
+      // Do not call cleanup() here: this.ws must stay set until the socket
+      // actually finishes connecting, or the deferred close below closes
+      // nothing (this.ws would already be null) and the setup-message "open"
+      // handler registered in connect() throws trying to send on a null
+      // socket. isDisconnecting also stays true so the already-registered
+      // "close" handler -- which does the real cleanup() once this socket
+      // genuinely closes -- knows not to fire onSessionEnd for a disconnect
+      // we asked for ourselves.
       this.ws.once("open", () => {
         try {
           this.ws?.close();
         } catch {}
       });
-      const result = { text: this.getFullTranscript() };
-      this.cleanup();
-      this.isDisconnecting = false;
-      return result;
+      return { text: this.getFullTranscript() };
     }
 
     if (this.ws.readyState === WebSocket.OPEN) {

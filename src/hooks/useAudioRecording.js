@@ -451,8 +451,10 @@ export const useAudioRecording = (toast, options = {}) => {
         onDemoEventRef.current?.({ kind: demoKindRef.current, status: "partial", text });
         setPartialTranscript(text);
         const settings = getSettings();
+        const previewOwningProviderName = audioManagerRef.current?.getStreamingProviderName?.();
         if (
-          audioManagerRef.current?.getStreamingProviderName?.() !== "tinfoil-realtime" &&
+          previewOwningProviderName !== "tinfoil-realtime" &&
+          previewOwningProviderName !== "gemini-live" &&
           shouldShowByokStreamingPreview(
             settings.showTranscriptionPreview,
             settings.cloudTranscriptionMode,
