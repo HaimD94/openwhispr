@@ -450,6 +450,65 @@ async function mergeAudioSegments(segments) {
   }
 }
 
+async function convertPcmChunksToWebm(pcmBuffer) {
+  if (!pcmBuffer || pcmBuffer.length === 0) {
+    throw new Error("PCM buffer is required and cannot be empty");
+  }
+
+  const ffmpegPath = getFFmpegPath();
+  if (!ffmpegPath) throw new Error("FFmpeg not found - required for audio encoding");
+
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "openwhispr-pcm-encode-"));
+  const inputPath = path.join(tempDir, `ow-live-${Date.now()}.pcm`);
+  const outputPath = path.join(tempDir, "encoded.webm");
+
+  try {
+    fs.writeFileSync(inputPath, Buffer.from(pcmBuffer));
+
+    await new Promise((resolve, reject) => {
+      const args = [
+        "-f",
+        "s16le",
+        "-ar",
+        "16000",
+        "-ac",
+        "1",
+        "-i",
+        inputPath,
+        "-c:a",
+        "libopus",
+        "-b:a",
+        "64k",
+        "-y",
+        outputPath,
+      ];
+      const proc = spawn(ffmpegPath, args, {
+        stdio: ["ignore", "pipe", "pipe"],
+        windowsHide: true,
+      });
+      let stderr = "";
+      proc.stderr.on("data", (data) => {
+        stderr += data.toString();
+      });
+      proc.on("error", (error) => reject(new Error(`FFmpeg process error: ${error.message}`)));
+      proc.on("close", (code) => {
+        if (code !== 0) {
+          const preview = stderr.slice(-500).trim();
+          reject(
+            new Error(`FFmpeg audio encode exited with code ${code}${preview ? `: ${preview}` : ""}`)
+          );
+          return;
+        }
+        resolve();
+      });
+    });
+
+    return fs.readFileSync(outputPath);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+}
+
 function clearCache() {
   cachedFFmpegPath = null;
 }
@@ -464,5 +523,7 @@ module.exports = {
   wavToFloat32Samples,
   computeFloat32RMS,
   mergeAudioSegments,
+  convertPcmChunksToWebm,
   clearCache,
 };
+

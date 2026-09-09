@@ -556,6 +556,7 @@ class AudioManager {
     this.streamingStream = null;
     this.streamingCleanupFns = [];
     this.streamingFinalText = "";
+    this.streamingPcmChunks = [];
     this.streamingPartialText = "";
     this.streamingTextBump = null;
     this.streamingTextDebounce = null;
@@ -4350,6 +4351,21 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
         // on stop; the sentinel must not be sent as audio (realtime backends
         // reject the odd-length non-PCM bytes with "Invalid audio data").
         if (!ownsSession() || !this.isStreaming || event.data === "flushed") return;
+        if (getEffectiveRetentionPreferences().audioRetentionDays > 0 && event.data) {
+          try {
+            const chunk =
+              event.data instanceof ArrayBuffer
+                ? new Uint8Array(event.data.slice(0))
+                : new Uint8Array(
+                    event.data.buffer || event.data,
+                    event.data.byteOffset || 0,
+                    event.data.byteLength
+                  ).slice();
+            this.streamingPcmChunks.push(chunk);
+          } catch {
+            // Non-blocking: failure to accumulate must not disrupt streaming dictation
+          }
+        }
         provider.send(event.data);
       };
 
@@ -4361,6 +4377,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       // 3. Register IPC event listeners BEFORE connecting, so no transcript
       //    events are lost during the connect handshake.
       this.streamingFinalText = "";
+      this.streamingPcmChunks = [];
       this.streamingPartialText = "";
       this.streamingTextBump = null;
       this.streamingTextDebounce = null;
@@ -5107,6 +5124,42 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
         batchFallbackResult?.clientTranscriptionId || crypto.randomUUID();
       const resultAnalyticsOccurredAt =
         batchFallbackResult?.analyticsOccurredAt || analyticsOccurredAt.toISOString();
+
+      if (this.streamingPcmChunks?.length > 0) {
+        try {
+          let totalLength = 0;
+          for (const chunk of this.streamingPcmChunks) {
+            totalLength += chunk.byteLength;
+          }
+          const concatenated = new Uint8Array(totalLength);
+          let offset = 0;
+          for (const chunk of this.streamingPcmChunks) {
+            concatenated.set(chunk, offset);
+            offset += chunk.byteLength;
+          }
+          const encodeRes = await window.electronAPI.encodeLiveDictationAudio(concatenated.buffer);
+          if (encodeRes?.success && encodeRes?.buffer) {
+            this.lastAudioBlob = new Blob([encodeRes.buffer], {
+              type: encodeRes.mimeType || "audio/webm",
+            });
+          } else if (encodeRes && !encodeRes.success) {
+            logger.warn(
+              "Failed to encode live dictation audio",
+              { error: encodeRes.error },
+              "audio"
+            );
+          }
+        } catch (encodeErr) {
+          logger.warn(
+            "Failed to encode live dictation audio",
+            { error: encodeErr.message },
+            "audio"
+          );
+        } finally {
+          this.streamingPcmChunks.length = 0;
+        }
+      }
+
       this.lastAudioMetadata = {
         durationMs: durationSeconds
           ? Math.round(durationSeconds * 1000)
@@ -5316,6 +5369,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
     }
     this.streamingCleanupFns = [];
     this.streamingFinalText = "";
+    this.streamingPcmChunks = [];
     this.streamingPartialText = "";
     this.streamingTextBump = null;
     clearTimeout(this.streamingTextDebounce);

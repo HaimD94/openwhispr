@@ -1549,6 +1549,26 @@ class IPCHandlers {
       }
     });
 
+    ipcMain.handle("encode-live-dictation-audio", async (_event, pcmBuffer) => {
+      try {
+        if (!pcmBuffer || (pcmBuffer.byteLength === 0 && pcmBuffer.length === 0)) {
+          throw new Error("Invalid PCM buffer");
+        }
+        const { convertPcmChunksToWebm } = require("./ffmpegUtils");
+        const buffer = await convertPcmChunksToWebm(Buffer.from(pcmBuffer));
+        // Slice to a real ArrayBuffer: Buffers sent over IPC arrive as Uint8Array,
+        // and pooled Buffers share a larger underlying allocation.
+        return {
+          success: true,
+          buffer: buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength),
+          mimeType: "audio/webm",
+        };
+      } catch (error) {
+        debugLogger.error("Failed to encode live dictation audio", { error: error.message });
+        return { success: false, error: error.message };
+      }
+    });
+
     ipcMain.handle("get-audio-path", async (event, id) => {
       return this.audioStorageManager.getAudioPath(id);
     });

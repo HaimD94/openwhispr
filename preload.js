@@ -146,6 +146,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   saveTranscriptionAudio: (id, audioBuffer, metadata) =>
     ipcRenderer.invoke("save-transcription-audio", id, audioBuffer, metadata),
   mergeAudioSegments: (segments) => ipcRenderer.invoke("merge-audio-segments", segments),
+  encodeLiveDictationAudio: (pcmBuffer) =>
+    ipcRenderer.invoke("encode-live-dictation-audio", pcmBuffer),
   getAudioPath: (id) => ipcRenderer.invoke("get-audio-path", id),
   showAudioInFolder: (id) => ipcRenderer.invoke("show-audio-in-folder", id),
   getAudioBuffer: (id) => ipcRenderer.invoke("get-audio-buffer", id),
