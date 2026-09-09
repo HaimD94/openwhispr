@@ -2,6 +2,14 @@ const { screen } = require("electron");
 const { WindowPositionUtil } = require("./windowConfig");
 const debugLogger = require("./debugLogger");
 
+// A press is only a drag once the cursor has actually travelled. Without this,
+// every mousedown started moving the window at 60fps, so the few pixels a hand
+// moves while clicking dragged the pill out from under the pointer -- it
+// "ran away" from the click, and the click itself was often lost because the
+// target moved before mouseup. Windows' own threshold (SM_CXDRAG) is 4px;
+// 5 leaves a little room for a heavy click without feeling sticky.
+const DRAG_START_THRESHOLD_PX = 5;
+
 class DragManager {
   constructor() {
     this.isDragging = false;
@@ -9,6 +17,10 @@ class DragManager {
     this.mouseTrackingInterval = null;
     this.targetWindow = null;
     this.activeWindow = null;
+    // Set at mousedown; the window does not move until the cursor leaves the
+    // threshold around it, at which point the drag is "armed" for good.
+    this.dragStartCursor = null;
+    this.dragArmed = false;
   }
 
   setTargetWindow(window) {
@@ -38,6 +50,10 @@ class DragManager {
         y: cursorPos.y - windowPos[1],
       };
 
+      // Nothing moves until the pointer proves this is a drag and not a click.
+      this.dragStartCursor = { x: cursorPos.x, y: cursorPos.y };
+      this.dragArmed = false;
+
       // Start tracking mouse movements
       this.setupMouseTracking();
 
@@ -54,6 +70,8 @@ class DragManager {
     try {
       this.isDragging = false;
       this.activeWindow = null;
+      this.dragStartCursor = null;
+      this.dragArmed = false;
       this.stopMouseTracking();
       debugLogger.info("Window drag stopped", undefined, "window-drag");
       return { success: true };
@@ -78,6 +96,19 @@ class DragManager {
   updateWindowPosition() {
     try {
       const cursorPos = screen.getCursorScreenPoint();
+
+      // Hold still until the pointer has travelled far enough to mean it.
+      if (!this.dragArmed) {
+        if (!this.dragStartCursor) {
+          this.dragArmed = true;
+        } else {
+          const dx = cursorPos.x - this.dragStartCursor.x;
+          const dy = cursorPos.y - this.dragStartCursor.y;
+          if (Math.hypot(dx, dy) < DRAG_START_THRESHOLD_PX) return;
+          this.dragArmed = true;
+        }
+      }
+
       const { width, height } = this.activeWindow.getBounds();
       const x = cursorPos.x - this.dragOffset.x;
       const y = cursorPos.y - this.dragOffset.y;

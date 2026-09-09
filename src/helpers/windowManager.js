@@ -41,6 +41,17 @@ const {
   WindowPositionUtil,
 } = require("./windowConfig");
 const AGENT_DICTATION_PILL_SIZE = Object.freeze({ ...WINDOW_SIZES.BASE });
+
+// Windows pill hit-testing (see _computePillHitRect). The box has to cover the
+// widest pill state plus the control that appears beside it on hover:
+// VOICE_PILL_FOOTPRINT.recording (98) + VOICE_PILL_CANCEL gap (8) + size (28)
+// = 134, then margin for the 12px dock inset and the pill's shadow.
+const PILL_HIT_WIDTH = 156;
+// VOICE_PILL_FOOTPRINT.idle height (40) + the 12px dock inset + the same margin.
+const PILL_HIT_HEIGHT = 64;
+// Fast enough that the pill is already interactive by the time a pointer
+// crossing the headroom reaches it, cheap enough to be free (one cursor read).
+const PILL_HIT_POLL_MS = 60;
 const { centeredBounds, clampedBounds } = require("./onboardingWindowBounds");
 const { ONBOARDING_DEMO_KINDS, isOnboardingInputAllowed } = require("./onboardingInputPolicy");
 
@@ -131,6 +142,7 @@ class WindowManager {
     });
 
     this.setMainWindowInteractivity(false);
+    this.startPillHitTesting();
     this.registerMainWindowEvents();
     this.registerAssistantSelectionContextMenu();
 
@@ -245,9 +257,12 @@ class WindowManager {
     }
 
     if (process.platform === "win32") {
-      // Windows click-through forwarding is unreliable for this floating panel.
-      // Keep the panel interactive so the mic button and cancel button are always clickable.
+      // Windows click-through forwarding is unreliable for this floating panel,
+      // so the panel stays interactive here and the empty headroom around the
+      // pill is reclaimed by _updatePillHitTest() polling the real cursor
+      // position instead of trusting forwarded mouse events.
       this.mainWindow.setIgnoreMouseEvents(false);
+      this._pillHitInteractive = true;
       return;
     }
 
@@ -256,6 +271,117 @@ class WindowManager {
     } else {
       this.mainWindow.setIgnoreMouseEvents(true, { forward: true });
     }
+  }
+
+  // --- Windows pill hit-testing -------------------------------------------
+  //
+  // The pill window is WINDOW_SIZES.BASE (208x120) but the pill itself is only
+  // 40x40 idle / 98x36 recording, docked 12px from a bottom corner. The rest is
+  // deliberate headroom so the hover tooltip and the glow halo are not clipped
+  // by the window bounds. macOS and Linux make that headroom click-through;
+  // Windows could not, because setIgnoreMouseEvents(..., { forward: true })
+  // does not reliably deliver the mousemove needed to turn interactivity back
+  // on, so the whole box stayed interactive and roughly 90% of it became an
+  // invisible wall over whatever sits behind it.
+  //
+  // Polling the OS cursor sidesteps forwarding entirely: the main process
+  // already knows the window bounds and which corner the pill docks to, so it
+  // can decide interactivity without the renderer reporting anything.
+  //
+  // Every uncertain case resolves to interactive. Losing a click on the pill is
+  // much worse than leaving some headroom blocked, so anything unexpected —
+  // an open panel, a window larger than the pill box, a missing display —
+  // keeps the old always-interactive behaviour.
+  _computePillHitRect() {
+    if (!this.mainWindow || this.mainWindow.isDestroyed()) return null;
+
+    let bounds;
+    try {
+      bounds = this.mainWindow.getBounds();
+    } catch {
+      return null;
+    }
+    if (!bounds || !Number.isFinite(bounds.width) || !Number.isFinite(bounds.height)) {
+      return null;
+    }
+
+    // Anything bigger than the pill box is a real surface (menu, toast, error
+    // card, assistant panel) whose whole area is content. Never hit-test those.
+    if (bounds.width > WINDOW_SIZES.BASE.width || bounds.height > WINDOW_SIZES.BASE.height) {
+      return null;
+    }
+
+    // Pill (98 recording) + gap (8) + cancel (28) = 134, plus margin for the
+    // 12px dock inset and the pill's own shadow.
+    const width = Math.min(PILL_HIT_WIDTH, bounds.width);
+    const height = Math.min(PILL_HIT_HEIGHT, bounds.height);
+    const y = bounds.y + bounds.height - height; // every dock class is bottom-anchored
+
+    let x;
+    if (this._panelStartPosition === "bottom-left") {
+      x = bounds.x;
+    } else if (this._panelStartPosition === "center") {
+      x = bounds.x + Math.round((bounds.width - width) / 2);
+    } else {
+      x = bounds.x + bounds.width - width;
+    }
+
+    return { x, y, width, height };
+  }
+
+  _updatePillHitTest() {
+    if (process.platform !== "win32") return;
+    if (!this.mainWindow || this.mainWindow.isDestroyed()) return;
+    if (!this.mainWindow.isVisible()) return;
+
+    // An open panel owns its whole surface.
+    const rect = this._assistantPanelOpen ? null : this._computePillHitRect();
+
+    let interactive = true;
+    if (rect) {
+      try {
+        const cursor = screen.getCursorScreenPoint();
+        interactive =
+          cursor.x >= rect.x &&
+          cursor.x < rect.x + rect.width &&
+          cursor.y >= rect.y &&
+          cursor.y < rect.y + rect.height;
+      } catch {
+        interactive = true;
+      }
+    }
+
+    if (interactive === this._pillHitInteractive) return;
+    this._pillHitInteractive = interactive;
+    try {
+      this.mainWindow.setIgnoreMouseEvents(!interactive, { forward: true });
+    } catch {
+      this._pillHitInteractive = true;
+    }
+  }
+
+  startPillHitTesting() {
+    if (process.platform !== "win32") return;
+    if (process.env.OPENWHISPR_DISABLE_PILL_HITTEST === "1") {
+      debugLogger.info("Pill hit-testing disabled by env", {}, "window");
+      return;
+    }
+    if (this._pillHitTestInterval) return;
+    this._pillHitInteractive = true;
+    this._pillHitTestInterval = setInterval(() => this._updatePillHitTest(), PILL_HIT_POLL_MS);
+  }
+
+  stopPillHitTesting() {
+    if (this._pillHitTestInterval) {
+      clearInterval(this._pillHitTestInterval);
+      this._pillHitTestInterval = null;
+    }
+    if (this.mainWindow && !this.mainWindow.isDestroyed() && this._pillHitInteractive === false) {
+      try {
+        this.mainWindow.setIgnoreMouseEvents(false);
+      } catch {}
+    }
+    this._pillHitInteractive = true;
   }
 
   // Only the meeting prompt owns this: another overlay reporting its own hover
@@ -1961,6 +2087,7 @@ class WindowManager {
     this.mainWindow.on("move", () => this.positionAgentDictationPill());
 
     this.mainWindow.on("closed", () => {
+      this.stopPillHitTesting();
       this.dragManager.cleanup();
       const pillWindow = this.agentDictationPillWindow;
       if (pillWindow && !pillWindow.isDestroyed()) pillWindow.close();
