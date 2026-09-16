@@ -787,11 +787,11 @@ export default function App() {
           {!anyPanelMounted && isCommandMenuOpen && (
             <PillCommandMenu
               buttonRef={buttonRef}
-              align={voicePillPopoverAlign}
               isRecording={isRecording}
               agentAllowed={agentAllowed}
               meetingAllowed={meetingAllowed}
               isHovered={isHovered}
+              anchor={voicePillDock === "center" ? "center" : voiceHorizontalDirection}
               setWindowInteractivity={setWindowInteractivity}
               onToggleListening={() => {
                 toggleListening();

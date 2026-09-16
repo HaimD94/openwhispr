@@ -4,11 +4,11 @@ import { useTranslation } from "react-i18next";
 
 interface PillCommandMenuProps {
   buttonRef: React.RefObject<HTMLDivElement | null>;
-  align: "left" | "right" | "center";
   isRecording: boolean;
   agentAllowed: boolean;
   meetingAllowed: boolean;
   isHovered: boolean;
+  anchor?: "left" | "right" | "center";
   setWindowInteractivity: (capture: boolean) => void;
   onToggleListening: () => void;
   onAskAssistant: () => void;
@@ -23,11 +23,11 @@ interface PillCommandMenuProps {
  */
 export function PillCommandMenu({
   buttonRef,
-  align,
   isRecording,
   agentAllowed,
   meetingAllowed,
   isHovered,
+  anchor = "right",
   setWindowInteractivity,
   onToggleListening,
   onAskAssistant,
@@ -55,15 +55,19 @@ export function PillCommandMenu({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [buttonRef, onClose]);
 
-  // The pill docks against a physical window edge and the window clips anything past it (#2064),
-  // so the menu anchors on that same side, never on a logical start/end.
-  const alignClass =
-    align === "right" ? "right-0" : align === "left" ? "left-0" : "left-1/2 -translate-x-1/2";
+  // The menu is wider than the pill, and anything past the transparent window's
+  // edge is clipped away. The window grows away from the side the pill is docked
+  // to (rightward from a left dock, both ways from center), so the menu opens
+  // the same way. It used to be right-aligned always, which put it entirely
+  // off-window for a pill docked on the left. Physical left/right on purpose:
+  // the window geometry is physical and must not flip under an RTL UI.
+  const horizontalAnchor =
+    anchor === "left" ? "left-0" : anchor === "center" ? "left-1/2 -translate-x-1/2" : "right-0";
 
   return (
     <div
       ref={menuRef}
-      className={`absolute bottom-full ${alignClass} mb-3 w-48 overflow-hidden rounded-lg border border-border bg-popover text-popover-foreground shadow-lg backdrop-blur-sm`}
+      className={`absolute bottom-full ${horizontalAnchor} mb-3 w-48 overflow-hidden rounded-lg border border-border bg-popover text-popover-foreground shadow-lg backdrop-blur-sm`}
       onMouseEnter={() => {
         setWindowInteractivity(true);
       }}

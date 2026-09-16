@@ -15,7 +15,6 @@ async function renderMenu(t, props) {
   return renderToStaticMarkup(
     createElement(mod.PillCommandMenu, {
       buttonRef: { current: null },
-      align: "right",
       isRecording: false,
       agentAllowed: true,
       meetingAllowed: true,
@@ -42,8 +41,8 @@ test("the command menu hides Ask Assistant while a recording is active", async (
 // #2064: a menu always anchored on the pill's right edge hung past the window's left edge (and
 // was clipped) whenever the pill docked at the left or center.
 test("the command menu anchors on the pill's docked side", async (t) => {
-  const menuClasses = async (align) => {
-    const markup = await renderMenu(t, { align });
+  const menuClasses = async (anchor) => {
+    const markup = await renderMenu(t, { anchor });
     return markup.match(/^<div class="([^"]*)"/)[1].split(" ");
   };
 
@@ -69,3 +68,30 @@ test("the command menu offers a meeting recording only while idle and allowed", 
   assert.doesNotMatch(await renderMenu(t, { isRecording: true }), /startMeetingRecording/);
   assert.doesNotMatch(await renderMenu(t, { meetingAllowed: false }), /startMeetingRecording/);
 });
+
+test("the command menu opens toward the side its window grows into", async (t) => {
+  // A pill docked on the left sits at the window's left edge; the menu used to
+  // be right-aligned always, so there it started at negative x and was clipped
+  // away entirely.
+  const leftMarkup = await renderMenu(t, { anchor: "left" });
+  assert.match(leftMarkup, /\bleft-0\b/);
+  assert.doesNotMatch(leftMarkup, /\bright-0\b/);
+  assert.doesNotMatch(leftMarkup, /\bend-0\b/);
+
+  const rightMarkup = await renderMenu(t, { anchor: "right" });
+  assert.match(rightMarkup, /\bright-0\b/);
+  assert.doesNotMatch(rightMarkup, /\bleft-0\b/);
+  assert.doesNotMatch(rightMarkup, /\bend-0\b/);
+
+  const defaultMarkup = await renderMenu(t, {});
+  assert.match(defaultMarkup, /\bright-0\b/);
+  assert.doesNotMatch(defaultMarkup, /\bleft-0\b/);
+  assert.doesNotMatch(defaultMarkup, /\bend-0\b/);
+
+  // A centered pill grows its window both ways, so the menu centers on it.
+  const centerMarkup = await renderMenu(t, { anchor: "center" });
+  assert.match(centerMarkup, /\bleft-1\/2\b/);
+  assert.match(centerMarkup, /-translate-x-1\/2/);
+  assert.doesNotMatch(centerMarkup, /\bright-0\b/);
+});
+
