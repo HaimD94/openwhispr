@@ -117,6 +117,7 @@ import {
   defaultStreamingProviderName,
   resolveStreamingProviderName,
   buildStreamingSessionOptions,
+  resolveStreamingStartFailure,
 } from "./dictationStreamingRouting";
 
 const REASONING_CACHE_TTL = 30000; // 30 seconds
@@ -4462,18 +4463,26 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
         );
 
         if (!res.success) {
-          if (res.code === "NO_API") {
+          // Whether a failed session costs the user their dictation is decided
+          // in dictationStreamingRouting, where it can be tested without
+          // standing up a microphone. See resolveStreamingStartFailure.
+          const { fallback, notice } = resolveStreamingStartFailure({
+            providerName: this.getStreamingProviderName(),
+            code: res.code,
+            useLocalWhisper,
+          });
+          if (fallback) {
+            if (notice) {
+              logger.warn(
+                "Streaming session could not start, falling back to batch",
+                { provider: this.getStreamingProviderName(), code: res.code, error: res.error },
+                "streaming"
+              );
+              this.onError?.(notice);
+            }
             return { needsFallback: true };
           }
-          if (res.code === "NETWORK_ERROR" && useLocalWhisper) {
-            this.onError?.({
-              code: "NETWORK_ERROR",
-              title: "streaming.errors.cloudUnreachable.title",
-              description: "Cloud unreachable — using local engine for this recording.",
-              messageKey: "streaming.errors.cloudUnreachable.fallback",
-            });
-            return { needsFallback: true };
-          }
+
           const err = new Error(res.error || "Failed to start streaming session");
           err.code = res.code;
           err.messageKey = res.messageKey;

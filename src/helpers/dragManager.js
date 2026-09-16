@@ -10,6 +10,30 @@ const debugLogger = require("./debugLogger");
 // 5 leaves a little room for a heavy click without feeling sticky.
 const DRAG_START_THRESHOLD_PX = 5;
 
+// Windows moves a window by being told a whole rectangle, and Electron converts
+// that rectangle through physical pixels on the way. At a fractional display
+// scale the round trip does not come back where it started, so every
+// setPosition() hands the window back at least a pixel larger on each axis --
+// electron/electron#9477, reported in 2017 and still reproducible here on
+// Electron 41 (measured: 600 calls grew a 213x124 window to 1084x997).
+//
+// At the loop's 60fps that is roughly 60px per second in both directions, and
+// because the pill is drawn 12px from the window's BOTTOM corner while the
+// drag pins the window's TOP-LEFT to the cursor, the pill slides away from the
+// pointer at exactly that rate and then sits at whatever distance the release
+// left it. That is the "runaway", and it is why it was there from the start.
+//
+// The fix the issue thread converged on, and the only variant that measured
+// stable here, is to pass the size explicitly on every move and to keep that
+// size CONSTANT. Re-reading it each tick is not a fix: getBounds() faithfully
+// reports the inflated window, so feeding it back grows just as fast
+// (github.com/electron/electron/issues/9477#issuecomment-444443301).
+//
+// A tick is allowed to adopt a genuinely new size -- the size ladder can grow
+// the window mid-drag -- but only when the change is far larger than the
+// rounding this exists to absorb.
+const DRAG_SIZE_ROUNDING_TOLERANCE_PX = 4;
+
 // Backstop for a drag whose mouseup never arrived (the renderer went
 // click-through mid-gesture, the window lost focus to a system dialog, a
 // crashed renderer). Without it the tracker keeps the window glued to the
@@ -29,10 +53,51 @@ class DragManager {
     this.dragStartCursor = null;
     this.dragArmed = false;
     this.dragStartedAt = null;
+    // The size the window had when the gesture began, and the size every move
+    // during the gesture re-asserts. Never re-read from the window: see the
+    // note on DRAG_SIZE_ROUNDING_TOLERANCE_PX.
+    this.dragSize = null;
   }
 
   setTargetWindow(window) {
     this.targetWindow = window;
+  }
+
+  /** The window's current size, or null if it cannot be read. */
+  _readWindowSize(win) {
+    try {
+      const bounds = win.getBounds();
+      if (!Number.isFinite(bounds.width) || !Number.isFinite(bounds.height)) return null;
+      return { width: bounds.width, height: bounds.height };
+    } catch {
+      return null;
+    }
+  }
+
+  /** The size this tick should command. Normally the one locked at drag start,
+   *  so the fractional-DPI round trip has nothing to accumulate against. A
+   *  window that genuinely changed size mid-gesture -- the size ladder opening
+   *  a panel while the pill is held -- moves by far more than the rounding, and
+   *  that change is adopted so the drag does not fight it back down. */
+  _resolveDragSize(win) {
+    const live = this._readWindowSize(win);
+    if (!this.dragSize) {
+      this.dragSize = live;
+      return live || { width: 0, height: 0 };
+    }
+    if (
+      live &&
+      (Math.abs(live.width - this.dragSize.width) > DRAG_SIZE_ROUNDING_TOLERANCE_PX ||
+        Math.abs(live.height - this.dragSize.height) > DRAG_SIZE_ROUNDING_TOLERANCE_PX)
+    ) {
+      debugLogger.info(
+        "Window resized mid-drag; adopting the new size",
+        { was: this.dragSize, now: live },
+        "window-drag"
+      );
+      this.dragSize = live;
+    }
+    return this.dragSize;
   }
 
   /** The grip point, always inside the window. A renderer-measured offset is
@@ -94,6 +159,7 @@ class DragManager {
       const windowPos = win.getPosition();
 
       this.dragOffset = this._resolveGrabOffset(win, cursorPos, windowPos, grabOffset);
+      this.dragSize = this._readWindowSize(win);
 
       // Nothing moves until the pointer proves this is a drag and not a click.
       this.dragStartCursor = { x: cursorPos.x, y: cursorPos.y };
@@ -105,7 +171,11 @@ class DragManager {
 
       debugLogger.info(
         "Window drag started",
-        { cursor: cursorPos, windowPos, offset: this.dragOffset },
+        // The window's size is logged alongside the grip because the two only
+        // ever disagreed when setPosition was inflating it; if a grip outside
+        // the window is ever seen again, that pair says immediately whether
+        // the window grew or the reading is wrong.
+        { cursor: cursorPos, windowPos, offset: this.dragOffset, size: this.dragSize },
         "window-drag"
       );
       return { success: true };
@@ -137,6 +207,7 @@ class DragManager {
       this.dragStartCursor = null;
       this.dragArmed = false;
       this.dragStartedAt = null;
+      this.dragSize = null;
       this.stopMouseTracking();
       debugLogger.info("Window drag stopped", undefined, "window-drag");
       return { success: true };
@@ -177,7 +248,7 @@ class DragManager {
         }
       }
 
-      const { width, height } = this.activeWindow.getBounds();
+      const { width, height } = this._resolveDragSize(this.activeWindow);
       const x = cursorPos.x - this.dragOffset.x;
       const y = cursorPos.y - this.dragOffset.y;
 
@@ -190,7 +261,10 @@ class DragManager {
       });
       const clamped = WindowPositionUtil.clampToWorkArea({ x, y, width, height }, display);
 
-      this.activeWindow.setPosition(clamped.x, clamped.y);
+      // setBounds with the locked size, never setPosition: see the note at the
+      // top of the file. The size has to travel with every single move, or
+      // Windows re-derives it from the rounded rectangle and inflates it.
+      this.activeWindow.setBounds({ x: clamped.x, y: clamped.y, width, height });
     } catch (error) {
       console.error("Error updating window position:", error);
       this.stopWindowDrag("error");

@@ -44,6 +44,7 @@ const PERSISTED_KEYS = [
   "FLOATING_ICON_AUTO_HIDE",
   "PANEL_START_POSITION",
   "START_MINIMIZED",
+  "GEMINI_LIVE_BATCH_SWAP",
   "UI_LANGUAGE",
   "WHISPER_CUDA_ENABLED",
   "WHISPER_VULKAN_ENABLED",
@@ -469,6 +470,18 @@ class EnvironmentManager {
 
   saveStartMinimized(enabled) {
     const result = this._saveKey("START_MINIMIZED", String(enabled));
+    this.saveAllKeysToEnvFile().catch(() => {});
+    return result;
+  }
+
+  // On unless explicitly turned off: a missing value must keep the swap, since
+  // without it every batch request for the live model fails outright.
+  getGeminiLiveBatchSwap() {
+    return this._getKey("GEMINI_LIVE_BATCH_SWAP") !== "false";
+  }
+
+  saveGeminiLiveBatchSwap(enabled) {
+    const result = this._saveKey("GEMINI_LIVE_BATCH_SWAP", String(enabled));
     this.saveAllKeysToEnvFile().catch(() => {});
     return result;
   }

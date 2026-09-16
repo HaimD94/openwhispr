@@ -585,6 +585,10 @@
         "timeout": "網路逾時 — VPN、強制入口頁或連線不穩定。",
         "tls": "TLS 交握失敗 — 請檢查系統時鐘或企業 Proxy。",
         "fallback": "Cloud 無法連線 — 本次錄音將使用本機引擎。"
+      },
+      "liveUnavailable": {
+        "title": "即時轉錄無法使用",
+        "fallback": "Gemini Live 無法啟動 — 本次將改用一般錄音轉錄。"
       }
     }
   },
@@ -2144,7 +2148,11 @@
         "noteRecording": "筆記錄音",
         "upload": "上傳音訊"
       },
-      "selfHostedStreamingNote": "需要支援串流轉錄的伺服器。"
+      "selfHostedStreamingNote": "需要支援串流轉錄的伺服器。",
+      "geminiLiveBatchSwap": {
+        "label": "錄音改用 Gemini Transcribe",
+        "description": "Gemini Live 無法處理已完成的錄音。重新轉錄、上傳音訊或 Live 啟動失敗時，將改用 Gemini 3.5 Transcribe（會消耗你的 API 配額）。僅在排查問題時關閉——關閉後這些請求會失敗。"
+      }
     },
     "llms": {
       "title": "語言模型",
@@ -2533,6 +2541,7 @@
         "groq_whisper_large_v3": "Large v3 模型，快速且精準",
         "mistral_voxtral_mini_latest": "快速多語言轉錄",
         "gemini_3_5_transcribe": "Google Gemini 語音轉文字",
+        "gemini_3_5_transcribe_live": "Google Gemini 即時語音轉文字",
         "corti_transcribe": "臨床級醫療轉錄",
         "xai_grok_stt": "xAI 高精度語音辨識",
         "tinfoil_voxtral": "可驗證的私密轉錄"

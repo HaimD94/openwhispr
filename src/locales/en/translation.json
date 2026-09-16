@@ -585,6 +585,10 @@
         "timeout": "Network timed out — VPN, captive portal, or unstable connection.",
         "tls": "TLS handshake failed — check your system clock or for a corporate proxy.",
         "fallback": "Cloud unreachable — using local engine for this recording."
+      },
+      "liveUnavailable": {
+        "title": "Live transcription unavailable",
+        "fallback": "Gemini Live could not start — recording this one normally instead."
       }
     }
   },
@@ -2433,7 +2437,11 @@
         "noteRecording": "Note Recording",
         "upload": "Audio Upload"
       },
-      "selfHostedStreamingNote": "Requires a server that supports streaming transcription."
+      "selfHostedStreamingNote": "Requires a server that supports streaming transcription.",
+      "geminiLiveBatchSwap": {
+        "label": "Fall back to Gemini Transcribe for recordings",
+        "description": "Gemini Live can’t process finished recordings. For re-transcribing, audio uploads, and when Live fails to start, Gemini 3.5 Transcribe is used instead (uses your API quota). Turn off only for troubleshooting — those requests will then fail."
+      }
     },
     "llms": {
       "title": "Language Models",
@@ -2626,6 +2634,7 @@
         "groq_whisper_large_v3_turbo": "216x real-time speed",
         "mistral_voxtral_mini_latest": "Fast multilingual transcription",
         "gemini_3_5_transcribe": "Google's Gemini speech-to-text",
+        "gemini_3_5_transcribe_live": "Google's Gemini live streaming speech-to-text",
         "corti_transcribe": "Clinical-grade medical transcription",
         "xai_grok_stt": "High-accuracy speech recognition by xAI",
         "tinfoil_voxtral": "Verifiably private transcription"

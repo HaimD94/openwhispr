@@ -57,3 +57,59 @@ export function buildStreamingSessionOptions({
   }
   return options;
 }
+
+// Providers whose streaming session, if it will not open, has an equally good
+// non-streaming route through the same provider, the same key and the same
+// price. For those, a failed connection is a reason to record the ordinary way
+// and transcribe the file -- not a reason to lose what the user is about to
+// say. Gemini Live is one: its batch sibling is also free of charge, and the
+// batch route already translates the streaming-only model id for itself.
+const PROVIDERS_WITH_A_BATCH_TWIN = new Set(["gemini-live"]);
+
+/**
+ * What to do when a streaming session fails to start.
+ *
+ * These three conditions grew inline inside startStreamingRecording, where the
+ * only way to reach them is to stand up the whole microphone pipeline -- so the
+ * rule that decides whether a user keeps their dictation had no test at all.
+ *
+ * Returns `{ fallback, notice }`. `fallback: true` means record normally and
+ * transcribe the file afterwards; `notice` is shown first when the user should
+ * know their words are taking a different route than usual. `fallback: false`
+ * means the caller should throw, because nothing else would produce a
+ * transcript.
+ */
+export function resolveStreamingStartFailure({ providerName, code, useLocalWhisper = false }) {
+  // Nothing was configured to stream with; the batch path is simply the path.
+  // No notice: this is the ordinary state of an app without a streaming key,
+  // not a degradation of anything the user chose.
+  if (code === "NO_API") {
+    return { fallback: true, notice: null };
+  }
+
+  if (code === "NETWORK_ERROR" && useLocalWhisper) {
+    return {
+      fallback: true,
+      notice: {
+        code,
+        title: "streaming.errors.cloudUnreachable.title",
+        description: "Cloud unreachable — using local engine for this recording.",
+        messageKey: "streaming.errors.cloudUnreachable.fallback",
+      },
+    };
+  }
+
+  if (PROVIDERS_WITH_A_BATCH_TWIN.has(providerName)) {
+    return {
+      fallback: true,
+      notice: {
+        code,
+        title: "streaming.errors.liveUnavailable.title",
+        description: "Gemini Live could not start — recording this one normally instead.",
+        messageKey: "streaming.errors.liveUnavailable.fallback",
+      },
+    };
+  }
+
+  return { fallback: false, notice: null };
+}

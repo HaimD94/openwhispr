@@ -1,5 +1,29 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
+
+// This file was silently dead: geminiTranscription pulls in debugLogger, which
+// reads app.isPackaged at import time, and outside Electron require("electron")
+// resolves to the path of the binary -- so every test in here failed before the
+// first assertion ran. A stub registered ahead of the require brings them back.
+// Only the members debugLogger touches at construction are needed.
+const Module = require("node:module");
+const originalLoad = Module._load;
+Module._load = function (request, ...rest) {
+  if (request === "electron") {
+    return {
+      net: undefined,
+      app: {
+        isPackaged: false,
+        isReady: () => false,
+        getVersion: () => "0.0.0-test",
+        getAppPath: () => process.cwd(),
+        getPath: () => require("node:os").tmpdir(),
+      },
+    };
+  }
+  return originalLoad.call(this, request, ...rest);
+};
+
 const { transcribeWithGemini } = require("../../src/helpers/geminiTranscription");
 
 const AUDIO = Buffer.from("fake-audio-bytes");
@@ -160,4 +184,83 @@ test("canonical mime types map onto Gemini's documented ones", async () => {
   );
 
   assert.equal(requestBody(calls).input[0].mime_type, "audio/mp3");
+});
+
+// The live id exists only on the Live WebSocket API. Sending it here returns
+// 400 "Model 'gemini-3.5-transcribe-live' not found", which is what anyone
+// dictating with the live model hit on every re-transcribe from history.
+test("swaps the live-only model for its batch equivalent", async () => {
+  for (const requested of ["gemini-3.5-transcribe-live", "models/gemini-3.5-transcribe-live"]) {
+    const { fetchImpl, calls } = makeFetch({ status: "completed", output_text: "hi" });
+
+    const result = await transcribeWithGemini(
+      { audioBuffer: AUDIO, model: requested, contentType: "audio/mp3", apiKey: "k1" },
+      fetchImpl
+    );
+
+    assert.equal(requestBody(calls).model, "gemini-3.5-transcribe", `sent for ${requested}`);
+    assert.equal(result.model, "gemini-3.5-transcribe");
+  }
+});
+
+test("leaves every other model id untouched", async () => {
+  const { fetchImpl, calls } = makeFetch({ status: "completed", output_text: "hi" });
+
+  await transcribeWithGemini(
+    { audioBuffer: AUDIO, model: "gemini-3.5-transcribe", contentType: "audio/mp3", apiKey: "k1" },
+    fetchImpl
+  );
+
+  assert.equal(requestBody(calls).model, "gemini-3.5-transcribe");
+});
+
+// The swap can be turned off from settings, to rule it out when chasing a bug.
+test("with the swap switched off, the live id is sent exactly as chosen", async () => {
+  const { fetchImpl, calls } = makeFetch({ status: "completed", output_text: "hi" });
+
+  await transcribeWithGemini(
+    {
+      audioBuffer: AUDIO,
+      model: "gemini-3.5-transcribe-live",
+      contentType: "audio/mp3",
+      apiKey: "k1",
+      swapStreamingOnlyModel: false,
+    },
+    fetchImpl
+  );
+
+  assert.equal(requestBody(calls).model, "gemini-3.5-transcribe-live");
+});
+
+test("a caller that says nothing about the swap still gets it", async () => {
+  // Default on: a setting that failed to load must not bring the 400 back.
+  const { fetchImpl, calls } = makeFetch({ status: "completed", output_text: "hi" });
+
+  await transcribeWithGemini(
+    { audioBuffer: AUDIO, model: "gemini-3.5-transcribe-live", apiKey: "k1" },
+    fetchImpl
+  );
+
+  assert.equal(requestBody(calls).model, "gemini-3.5-transcribe");
+});
+
+test("every Gemini batch call in the main process honours the setting", () => {
+  // A new call site that forgets the flag would silently ignore the switch, so
+  // the user would turn it off, see no change, and conclude the swap is fine.
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const source = fs.readFileSync(
+    path.join(__dirname, "../../src/helpers/ipcHandlers.js"),
+    "utf8"
+  );
+  const calls = source.split("transcribeWithGemini({").slice(1);
+  assert.ok(calls.length >= 3, `expected the three known call sites, found ${calls.length}`);
+  for (const [i, call] of calls.entries()) {
+    const args = call.slice(0, call.indexOf("});"));
+    assert.match(
+      args,
+      /swapStreamingOnlyModel: this\.environmentManager\.getGeminiLiveBatchSwap\(\)/,
+      `call ${i + 1} of transcribeWithGemini does not pass the setting`
+    );
+  }
 });

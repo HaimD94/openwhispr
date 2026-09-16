@@ -3,6 +3,7 @@ const AssemblyAiStreaming = require("./assemblyAiStreaming");
 const DeepgramStreaming = require("./deepgramStreaming");
 const CortiStreaming = require("./cortiStreaming");
 const { TinfoilRealtimeStreaming } = require("./tinfoilRealtimeStreaming");
+const GeminiLiveStreaming = require("./geminiLiveStreaming");
 
 const STREAMING_CLIENT_BY_PROVIDER = {
   "openai-realtime": OpenAIRealtimeStreaming,
@@ -10,6 +11,11 @@ const STREAMING_CLIENT_BY_PROVIDER = {
   "deepgram-realtime": DeepgramStreaming,
   "corti-realtime": CortiStreaming,
   "tinfoil-realtime": TinfoilRealtimeStreaming,
+  // Keyed "gemini-live", not "gemini-realtime": that is the name the token
+  // allowlist already uses for dictation, and the picker was offering Gemini
+  // for note recording while the routing built a name nothing recognised, so
+  // choosing it failed at connect time.
+  "gemini-live": GeminiLiveStreaming,
 };
 
 // Derived from the registry so an allowed provider can never lack a client

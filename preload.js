@@ -1007,6 +1007,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
 
   // Start minimized
   notifyStartMinimizedChanged: (enabled) => ipcRenderer.send("start-minimized-changed", enabled),
+  notifyGeminiLiveBatchSwapChanged: (enabled) =>
+    ipcRenderer.send("gemini-live-batch-swap-changed", enabled),
 
   // Auto-start management
   getAutoStartEnabled: () => ipcRenderer.invoke("get-auto-start-enabled"),

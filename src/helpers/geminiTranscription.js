@@ -5,6 +5,25 @@ const debugLogger = require("./debugLogger");
 // generateContent or OpenAI-compatible endpoint for it.
 const GEMINI_INTERACTIONS_URL = "https://generativelanguage.googleapis.com/v1beta/interactions";
 
+// The split runs the other way too: the live id is served only over the Live
+// WebSocket API, and sending it here comes back as
+//   400 Model 'gemini-3.5-transcribe-live' not found.
+//       Did you mean 'gemini-3.5-transcribe'?
+// Anyone whose dictation model is the live one hits that on every batch
+// request -- re-transcribing from history, transcribing a file, the streaming
+// fallback -- because the model travels with the route and nothing along the
+// way knows the two endpoints offer different catalogues.
+//
+// The translation belongs here rather than in resolveByokModel: that resolver
+// answers "which model did the user choose for this provider", and a test pins
+// every registry model to survive it unchanged so nobody's pick is silently
+// replaced. Batch-vs-streaming is a fact about *this* endpoint, and putting it
+// at the endpoint means no call site can route around it.
+const BATCH_MODEL_FOR_STREAMING_ONLY = {
+  "gemini-3.5-transcribe-live": "gemini-3.5-transcribe",
+  "models/gemini-3.5-transcribe-live": "gemini-3.5-transcribe",
+};
+
 // Gemini documents audio/mp3 and audio/aac instead of the audio/mpeg and
 // audio/mp4 types the rest of the pipeline uses.
 const GEMINI_MIME_TYPES = {
@@ -27,7 +46,7 @@ function extractText(data) {
 }
 
 async function transcribeWithGemini(
-  { audioBuffer, model, contentType, language, keyterms, apiKey },
+  { audioBuffer, model, contentType, language, keyterms, apiKey, swapStreamingOnlyModel = true },
   fetchImpl
 ) {
   if (!apiKey?.trim()) {
@@ -36,7 +55,19 @@ async function transcribeWithGemini(
     throw error;
   }
 
-  const resolvedModel = model || "gemini-3.5-transcribe";
+  // The swap can be switched off from settings, to rule it out when chasing a
+  // bug. Off means the live id goes to this endpoint as-is, and the 400 above
+  // comes back -- that is the expected result, not a new failure.
+  const requestedModel = (model || "").trim();
+  const swapped = swapStreamingOnlyModel ? BATCH_MODEL_FOR_STREAMING_ONLY[requestedModel] : null;
+  const resolvedModel = swapped || requestedModel || "gemini-3.5-transcribe";
+  if (requestedModel && resolvedModel !== requestedModel) {
+    debugLogger.info(
+      "Gemini streaming-only model swapped for its batch equivalent",
+      { requested: requestedModel, used: resolvedModel },
+      "gemini"
+    );
+  }
   const transcriptionConfig = {};
   if (language && language !== "auto") {
     transcriptionConfig.language_codes = [language];

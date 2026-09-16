@@ -94,6 +94,7 @@ import DictationTranslationSettings from "./settings/DictationTranslationSetting
 import InferenceConfigEditor from "./settings/InferenceConfigEditor";
 import { MeetingTranscriptionPanel } from "./settings/MeetingSettings";
 import { UploadTranscriptionPanel } from "./settings/UploadSettings";
+import GeminiLiveBatchSwapSetting from "./settings/GeminiLiveBatchSwapSetting";
 import LanguageSelector from "./ui/LanguageSelector";
 import { Skeleton } from "./ui/skeleton";
 import { Progress } from "./ui/progress";
@@ -4832,6 +4833,7 @@ EOF`,
                   setShowTranscriptionPreview={setShowTranscriptionPreview}
                   toast={toast}
                 />
+                <GeminiLiveBatchSwapSetting />
                 {transcriptionMode === "local" &&
                   localTranscriptionProvider === "whisper" &&
                   renderWhisperVadSettings()}

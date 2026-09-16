@@ -302,6 +302,7 @@ const BOOLEAN_SETTINGS = new Set([
   "pauseMediaOnDictation",
   "floatingIconAutoHide",
   "startMinimized",
+  "geminiLiveBatchSwap",
   "meetingProcessDetection",
   "speakerDiarizationEnabled",
   "dictationSileroEnabled",
@@ -659,6 +660,7 @@ export interface SettingsState
   pauseMediaOnDictation: boolean;
   floatingIconAutoHide: boolean;
   startMinimized: boolean;
+  geminiLiveBatchSwap: boolean;
   gcalAccounts: CalendarAccount[];
   gcalConnected: boolean;
   gcalEmail: string;
@@ -970,6 +972,7 @@ export interface SettingsState
   setPauseMediaOnDictation: (value: boolean) => void;
   setFloatingIconAutoHide: (enabled: boolean) => void;
   setStartMinimized: (enabled: boolean) => void;
+  setGeminiLiveBatchSwap: (enabled: boolean) => void;
   setGcalAccounts: (accounts: CalendarAccount[]) => void;
   setMcalAccounts: (accounts: CalendarAccount[]) => void;
   setNotificationsEnabled: (value: boolean) => void;
@@ -1381,6 +1384,7 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   pauseMediaOnDictation: readBoolean("pauseMediaOnDictation", false),
   floatingIconAutoHide: readBoolean("floatingIconAutoHide", false),
   startMinimized: readBoolean("startMinimized", false),
+  geminiLiveBatchSwap: readBoolean("geminiLiveBatchSwap", true),
   notificationsEnabled: readBoolean("notificationsEnabled", true),
   notifyMeetingDetection: readBoolean("notifyMeetingDetection", true),
   notifyCalendarReminders: readBoolean("notifyCalendarReminders", true),
@@ -2164,6 +2168,17 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
     set({ startMinimized: enabled });
     if (isBrowser) {
       window.electronAPI?.notifyStartMinimizedChanged?.(enabled);
+    }
+  },
+
+  // Read in the main process (geminiTranscription.js), so it lives in .env
+  // like startMinimized rather than only in this window's localStorage.
+  setGeminiLiveBatchSwap: (enabled: boolean) => {
+    if (get().geminiLiveBatchSwap === enabled) return;
+    if (isBrowser) localStorage.setItem("geminiLiveBatchSwap", String(enabled));
+    set({ geminiLiveBatchSwap: enabled });
+    if (isBrowser) {
+      window.electronAPI?.notifyGeminiLiveBatchSwapChanged?.(enabled);
     }
   },
 

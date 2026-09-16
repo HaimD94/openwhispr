@@ -4,6 +4,17 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const modelRegistry = require("../../src/models/modelRegistryData.json");
+// Read straight out of the source list rather than restated here, so adding a
+// UI language cannot leave this test checking a stale set.
+// Importing i18n.ts would drag i18next and react into a plain node test, so the
+// list is read out of the source text instead. Quoted entries only, which is
+// what the const holds.
+const SUPPORTED_UI_LANGUAGES = (() => {
+  const source = fs.readFileSync(path.join(__dirname, "../../src/i18n.ts"), "utf8");
+  const block = source.match(/SUPPORTED_UI_LANGUAGES\s*=\s*\[([\s\S]*?)\]/);
+  assert.ok(block, "could not find SUPPORTED_UI_LANGUAGES in src/i18n.ts");
+  return [...block[1].matchAll(/["']([^"']+)["']/g)].map((m) => m[1]);
+})();
 
 const SRC = path.join(__dirname, "../../src");
 const LOCALES = path.join(SRC, "locales");
@@ -12,9 +23,23 @@ const PLURAL_SUFFIX = /_(zero|one|two|few|many|other)$/;
 const T_CALL = /\bt\(\s*(['"`])([A-Za-z0-9_.-]+)\1/g;
 const INTERPOLATION = /\{\{\s*([\w.]+)/g;
 
-const languages = fs
+const allLanguages = fs
   .readdirSync(LOCALES)
   .filter((entry) => fs.statSync(path.join(LOCALES, entry)).isDirectory());
+
+// A locale directory does not have to carry both namespaces. Hebrew is
+// deliberately prompts-only: it is registered in PROMPTS_BY_LOCALE so dictation
+// can be cleaned up in Hebrew, but it is not in SUPPORTED_UI_LANGUAGES and has
+// no translation.json, because the interface is not translated to it.
+//
+// Reading the two namespaces off one directory listing assumed otherwise, and
+// every test in this file threw ENOENT on he/translation.json the moment those
+// prompts were added -- taking ~200 assertions down with them and hiding any
+// real translation gap behind the noise. So each namespace gets the languages
+// that actually carry it, and the UI languages are checked separately below,
+// where a genuinely missing interface translation still fails.
+const languagesWith = (namespace) =>
+  allLanguages.filter((lang) => fs.existsSync(path.join(LOCALES, lang, `${namespace}.json`)));
 
 const load = (lang, namespace) =>
   JSON.parse(fs.readFileSync(path.join(LOCALES, lang, `${namespace}.json`), "utf8"));
@@ -95,10 +120,20 @@ test("every model registry descriptionKey resolves in en", () => {
   assert.deepEqual(broken, [], `Registry descriptionKeys missing in en:\n${broken.join("\n")}`);
 });
 
+// The interface must exist in every language the app offers to switch to.
+// Without this, dropping a translation.json would now be silently tolerated by
+// the per-namespace filter above.
+test("every UI language the app offers has a translation file", () => {
+  const missing = SUPPORTED_UI_LANGUAGES.filter(
+    (lang) => !fs.existsSync(path.join(LOCALES, lang, "translation.json"))
+  );
+  assert.deepEqual(missing, [], `these UI languages have no translation.json: ${missing.join(", ")}`);
+});
+
 test("every en key is present in every other language", () => {
   for (const namespace of NAMESPACES) {
     const en = flatten(load("en", namespace));
-    for (const lang of languages) {
+    for (const lang of languagesWith(namespace)) {
       if (lang === "en") continue;
       const translated = flatten(load(lang, namespace));
       // Plural categories are language specific (ru adds _few/_many, zh only has
@@ -122,7 +157,7 @@ test("interpolation variables match en in every language", () => {
 
   for (const namespace of NAMESPACES) {
     const en = flatten(load("en", namespace));
-    for (const lang of languages) {
+    for (const lang of languagesWith(namespace)) {
       if (lang === "en") continue;
       for (const [key, value] of flatten(load(lang, namespace))) {
         if (!en.has(key)) continue;

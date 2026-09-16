@@ -585,6 +585,10 @@
         "timeout": "Délai réseau dépassé — VPN, portail captif ou connexion instable.",
         "tls": "Échec du handshake TLS — vérifiez l'horloge système ou un proxy d'entreprise.",
         "fallback": "Cloud injoignable — utilisation du moteur local pour cet enregistrement."
+      },
+      "liveUnavailable": {
+        "title": "Transcription en direct indisponible",
+        "fallback": "Gemini Live n'a pas pu démarrer — cet enregistrement se fera normalement."
       }
     }
   },
@@ -2433,7 +2437,11 @@
         "noteRecording": "Enregistrement de notes",
         "upload": "Importer un audio"
       },
-      "selfHostedStreamingNote": "Nécessite un serveur qui prend en charge la transcription en streaming."
+      "selfHostedStreamingNote": "Nécessite un serveur qui prend en charge la transcription en streaming.",
+      "geminiLiveBatchSwap": {
+        "label": "Utiliser Gemini Transcribe pour les enregistrements",
+        "description": "Gemini Live ne peut pas traiter des enregistrements terminés. Pour la retranscription, l’import audio et lorsque Live ne démarre pas, Gemini 3.5 Transcribe est utilisé à la place (compte dans votre quota d’API). Désactivez-le uniquement pour diagnostiquer un problème : ces requêtes échoueront."
+      }
     },
     "llms": {
       "title": "Modèles de langage",
@@ -2626,6 +2634,7 @@
         "groq_whisper_large_v3_turbo": "Vitesse 216x en temps réel",
         "mistral_voxtral_mini_latest": "Transcription multilingue rapide",
         "gemini_3_5_transcribe": "Reconnaissance vocale Gemini de Google",
+        "gemini_3_5_transcribe_live": "Reconnaissance vocale en direct Gemini de Google",
         "corti_transcribe": "Transcription médicale de qualité clinique",
         "xai_grok_stt": "Reconnaissance vocale haute précision par xAI",
         "tinfoil_voxtral": "Transcription vérifiablement privée"

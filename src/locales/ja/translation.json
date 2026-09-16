@@ -585,6 +585,10 @@
         "timeout": "ネットワークがタイムアウトしました — VPN、キャプティブポータル、または不安定な接続。",
         "tls": "TLS ハンドシェイクに失敗しました — システム時計または企業プロキシを確認してください。",
         "fallback": "Cloud に接続できません — この録音にはローカルエンジンを使用します。"
+      },
+      "liveUnavailable": {
+        "title": "リアルタイム文字起こしを利用できません",
+        "fallback": "Gemini Live を開始できませんでした。今回は通常の録音で文字起こしします。"
       }
     }
   },
@@ -2144,7 +2148,11 @@
         "noteRecording": "ノート録音",
         "upload": "音声のアップロード"
       },
-      "selfHostedStreamingNote": "ストリーミング文字起こしに対応したサーバーが必要です。"
+      "selfHostedStreamingNote": "ストリーミング文字起こしに対応したサーバーが必要です。",
+      "geminiLiveBatchSwap": {
+        "label": "録音には Gemini Transcribe を使用",
+        "description": "Gemini Live は録音済みの音声を処理できません。再文字起こし、音声のアップロード、Live の開始に失敗したときは、代わりに Gemini 3.5 Transcribe を使用します（API の利用枠を消費します）。トラブルシューティング時のみオフにしてください。オフにするとこれらのリクエストは失敗します。"
+      }
     },
     "llms": {
       "title": "言語モデル",
@@ -2533,6 +2541,7 @@
         "groq_whisper_large_v3": "Large v3 モデル、高速かつ高精度",
         "mistral_voxtral_mini_latest": "高速多言語文字起こし",
         "gemini_3_5_transcribe": "GoogleのGemini音声文字起こし",
+        "gemini_3_5_transcribe_live": "GoogleのGeminiリアルタイム音声文字起こし",
         "corti_transcribe": "臨床グレードの医療文字起こし",
         "xai_grok_stt": "xAIによる高精度音声認識",
         "tinfoil_voxtral": "検証可能なプライベート文字起こし"

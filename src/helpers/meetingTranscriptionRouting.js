@@ -3,6 +3,14 @@ const DEFAULT_MANAGED_PROVIDER = {
   models: [{ id: "gpt-4o-mini-transcribe", default: true }],
 };
 
+// Every other provider's streaming id is "<id>-realtime". Gemini's is not:
+// its engine, its token entry and its dictation routing all call it
+// "gemini-live", so the generic rule produced a name no allowlist knew and the
+// connection failed even though the picker offered the provider.
+const STREAMING_PROVIDER_ID = { gemini: "gemini-live" };
+const streamingProviderId = (providerId) =>
+  STREAMING_PROVIDER_ID[providerId] || `${providerId}-realtime`;
+
 const resolveModel = (provider, selectedModel) =>
   provider.models.find((model) => model.id === selectedModel)?.id ??
   provider.models.find((model) => model.default)?.id ??
@@ -40,7 +48,7 @@ export function resolveMeetingTranscriptionOptions({
   if (transcriptionMode === "openwhispr") {
     const provider = managedProviders?.[0] ?? DEFAULT_MANAGED_PROVIDER;
     return {
-      provider: `${provider.id}-realtime`,
+      provider: streamingProviderId(provider.id),
       model: resolveModel(provider, selectedModel),
       mode: "openwhispr",
       language,
@@ -63,7 +71,7 @@ export function resolveMeetingTranscriptionOptions({
   }
 
   const options = {
-    provider: `${provider.id}-realtime`,
+    provider: streamingProviderId(provider.id),
     model: resolveModel(provider, selectedModel),
     mode: "byok",
     language,

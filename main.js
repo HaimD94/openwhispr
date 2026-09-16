@@ -1048,6 +1048,11 @@ async function startApp() {
     environmentManager.saveStartMinimized(enabled);
   });
 
+  ipcMain.on("gemini-live-batch-swap-changed", (_event, enabled) => {
+    if (debugLogger) debugLogger.info("Gemini Live batch swap changed", { enabled });
+    environmentManager.saveGeminiLiveBatchSwap(enabled);
+  });
+
   ipcMain.on("panel-start-position-changed", (_event, position) => {
     windowManager.setPanelStartPosition(position);
     environmentManager.savePanelStartPosition(position);

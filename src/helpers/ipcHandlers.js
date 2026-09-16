@@ -63,6 +63,7 @@ const DeepgramStreaming = require("./deepgramStreaming");
 const CortiStreaming = require("./cortiStreaming");
 const OpenAIRealtimeStreaming = require("./openaiRealtimeStreaming");
 const GeminiLiveStreaming = require("./geminiLiveStreaming");
+const { stopRealtimeSession } = require("./realtimeStopResult");
 const { getCortiToken } = require("./cortiAuth");
 const { ONBOARDING_DEMO_KINDS } = require("./onboardingInputPolicy");
 const { focusWindowsHotkeyCaptureWindow } = require("./hotkeyCaptureFocus");
@@ -4443,6 +4444,7 @@ class IPCHandlers {
           language,
           keyterms,
           apiKey: this.environmentManager.getGeminiKey(),
+          swapStreamingOnlyModel: this.environmentManager.getGeminiLiveBatchSwap(),
         });
       })
     );
@@ -6252,6 +6254,7 @@ class IPCHandlers {
             contentType: "audio/webm",
             language: route.language,
             apiKey: this.environmentManager.getGeminiKey(),
+            swapStreamingOnlyModel: this.environmentManager.getGeminiLiveBatchSwap(),
           });
           if (text) result = { text, source: "gemini", model: route.model };
         } else {
@@ -8811,13 +8814,13 @@ class IPCHandlers {
       if (!this._dictationStreaming) {
         return { success: true, text: "" };
       }
-      const result = await this._dictationStreaming.disconnect().catch(() => ({ text: "" }));
+      const result = await stopRealtimeSession(this._dictationStreaming);
       this._dictationStreaming = null;
       if (this._dictationPreviewEnabled) {
         this.windowManager.hideTranscriptionPreview();
         this._dictationPreviewEnabled = false;
       }
-      return { success: true, text: result.text || "" };
+      return result;
     });
 
     ipcMain.handle(
@@ -9721,6 +9724,7 @@ class IPCHandlers {
               model: route.model,
               contentType: AUDIO_MIME_TYPES[ext] || "audio/mpeg",
               apiKey: apiKey || this.environmentManager.getGeminiKey(),
+              swapStreamingOnlyModel: this.environmentManager.getGeminiLiveBatchSwap(),
             });
             return { success: true, text };
           }
