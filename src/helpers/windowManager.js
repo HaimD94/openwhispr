@@ -1471,7 +1471,18 @@ class WindowManager {
     this._mainWindowPlacementCoordinator.cancelPending();
     this._dragStartBounds =
       this.mainWindow && !this.mainWindow.isDestroyed() ? this.mainWindow.getBounds() : null;
-    return await this.dragManager.startWindowDrag(null, grabOffset);
+    const geometry = {
+      getIntendedSize: () => {
+        const size = WINDOW_SIZES[this._mainWindowSizeKey];
+        return size ? { width: size.width, height: size.height } : null;
+      },
+      getAnchor: () => {
+        return this._panelStartPosition === "center"
+          ? "center"
+          : this._activeHorizontalDirection || this.getMainWindowHorizontalDirection();
+      },
+    };
+    return await this.dragManager.startWindowDrag(null, grabOffset, geometry);
   }
 
   async stopWindowDrag() {
