@@ -31,8 +31,11 @@ const DRAG_START_THRESHOLD_PX = 5;
 //
 // A tick is allowed to adopt a genuinely new size -- the size ladder can grow
 // the window mid-drag -- but only when the change is far larger than the
-// rounding this exists to absorb.
-const DRAG_SIZE_ROUNDING_TOLERANCE_PX = 4;
+// rounding this exists to absorb. At fractional DPI (e.g. 123% scaling on
+// Windows 11), round-trip inflation can cause accumulated drift from earlier
+// drags to exceed 4px (e.g. 211x122 .. 215x126 measured over consecutive drags),
+// so tolerance is raised to 8px.
+const DRAG_SIZE_ROUNDING_TOLERANCE_PX = 8;
 
 // Backstop for a drag whose mouseup never arrived (the renderer went
 // click-through mid-gesture, the window lost focus to a system dialog, a
@@ -57,6 +60,14 @@ class DragManager {
     // during the gesture re-asserts. Never re-read from the window: see the
     // note on DRAG_SIZE_ROUNDING_TOLERANCE_PX.
     this.dragSize = null;
+    // Optional geometry query for main window drags { getIntendedSize, getAnchor }.
+    // When provided, commands the intended size from WINDOW_SIZES rather than
+    // the inflated live size, so repeated drags cannot grow the window a pixel
+    // at a time (measured: 211x122, 212x123, ... 215x126 over five drags).
+    this.dragGeometry = null;
+    // Commanded position (or start position before first move) for fallback
+    // mid-drag offset recalculation when geometry is not provided.
+    this.lastCommandedPosition = null;
   }
 
   setTargetWindow(window) {
@@ -74,28 +85,109 @@ class DragManager {
     }
   }
 
+  /** Determine the size that should be commanded for the window. If the caller
+   *  provides geometry with an intended size (from WINDOW_SIZES) that agrees
+   *  with the live size within DRAG_SIZE_ROUNDING_TOLERANCE_PX, use that intended
+   *  size to break the electron#9477 fractional-DPI ratchet loop (measured: 1px
+   *  inflation on every drag). Otherwise, fall back to the live window size. */
+  _getTargetSize(win) {
+    const live = this._readWindowSize(win);
+    if (!live) return null;
+    if (this.dragGeometry && typeof this.dragGeometry.getIntendedSize === "function") {
+      const intended = this.dragGeometry.getIntendedSize();
+      if (
+        intended &&
+        Number.isFinite(intended.width) &&
+        Number.isFinite(intended.height) &&
+        Math.abs(live.width - intended.width) <= DRAG_SIZE_ROUNDING_TOLERANCE_PX &&
+        Math.abs(live.height - intended.height) <= DRAG_SIZE_ROUNDING_TOLERANCE_PX
+      ) {
+        return { width: intended.width, height: intended.height };
+      }
+    }
+    return live;
+  }
+
   /** The size this tick should command. Normally the one locked at drag start,
    *  so the fractional-DPI round trip has nothing to accumulate against. A
    *  window that genuinely changed size mid-gesture -- the size ladder opening
-   *  a panel while the pill is held -- moves by far more than the rounding, and
-   *  that change is adopted so the drag does not fight it back down. */
+   *  or closing a menu while the pill is held -- moves by far more than the
+   *  rounding tolerance. When adopting that new size, re-express dragOffset
+   *  against the window's dock anchor so the grip does not jump (e.g. WITH_MENU
+   *  240x280 closing to BASE 208x120 jumping the pill ~160 DIP above cursor). */
   _resolveDragSize(win) {
-    const live = this._readWindowSize(win);
+    const target = this._getTargetSize(win);
     if (!this.dragSize) {
-      this.dragSize = live;
-      return live || { width: 0, height: 0 };
+      this.dragSize = target;
+      return target || { width: 0, height: 0 };
+    }
+    if (!target) {
+      return this.dragSize;
     }
     if (
-      live &&
-      (Math.abs(live.width - this.dragSize.width) > DRAG_SIZE_ROUNDING_TOLERANCE_PX ||
-        Math.abs(live.height - this.dragSize.height) > DRAG_SIZE_ROUNDING_TOLERANCE_PX)
+      Math.abs(target.width - this.dragSize.width) > DRAG_SIZE_ROUNDING_TOLERANCE_PX ||
+      Math.abs(target.height - this.dragSize.height) > DRAG_SIZE_ROUNDING_TOLERANCE_PX
     ) {
+      const oldSize = this.dragSize;
+      const newSize = target;
+      const oldOffset = { ...this.dragOffset };
+      const deltaWidth = newSize.width - oldSize.width;
+      const deltaHeight = newSize.height - oldSize.height;
+
+      let anchor = null;
+      if (this.dragGeometry && typeof this.dragGeometry.getAnchor === "function") {
+        anchor = this.dragGeometry.getAnchor();
+        let deltaX = 0;
+        if (anchor === "right" || anchor === "bottom-right") {
+          deltaX = deltaWidth;
+        } else if (anchor === "center") {
+          deltaX = deltaWidth / 2;
+        } else {
+          // "left", "bottom-left", or other: offset.x unchanged
+          deltaX = 0;
+        }
+        this.dragOffset = {
+          x: this.dragOffset.x + deltaX,
+          y: this.dragOffset.y + deltaHeight,
+        };
+      } else {
+        // Without a known dock anchor, keep the grip on the same spot of the
+        // window's content by following however far the resize moved the window.
+        let livePos = null;
+        try {
+          const bounds = win.getBounds();
+          if (Number.isFinite(bounds.x) && Number.isFinite(bounds.y)) {
+            livePos = { x: bounds.x, y: bounds.y };
+          }
+        } catch {}
+        if (!livePos) {
+          try {
+            const pos = win.getPosition();
+            if (Array.isArray(pos) && Number.isFinite(pos[0]) && Number.isFinite(pos[1])) {
+              livePos = { x: pos[0], y: pos[1] };
+            }
+          } catch {}
+        }
+        if (livePos && this.lastCommandedPosition) {
+          this.dragOffset = {
+            x: this.dragOffset.x + (this.lastCommandedPosition.x - livePos.x),
+            y: this.dragOffset.y + (this.lastCommandedPosition.y - livePos.y),
+          };
+        }
+      }
+
       debugLogger.info(
         "Window resized mid-drag; adopting the new size",
-        { was: this.dragSize, now: live },
+        {
+          was: oldSize,
+          now: newSize,
+          anchor: anchor || null,
+          oldOffset,
+          newOffset: this.dragOffset,
+        },
         "window-drag"
       );
-      this.dragSize = live;
+      this.dragSize = newSize;
     }
     return this.dragSize;
   }
@@ -144,7 +236,7 @@ class DragManager {
    *  moved in that gap yields a grip point outside its own bounds -- observed as
    *  a 294px offset into a 208px window, which parks the pill a permanent 294px
    *  from the pointer for the rest of the gesture. */
-  async startWindowDrag(windowOverride = null, grabOffset = null) {
+  async startWindowDrag(windowOverride = null, grabOffset = null, geometry = null) {
     const win = windowOverride || this.targetWindow;
     if (!win || win.isDestroyed()) {
       return { success: false, message: "Window not available" };
@@ -153,13 +245,19 @@ class DragManager {
     try {
       this.isDragging = true;
       this.activeWindow = win;
+      this.dragGeometry = geometry || null;
 
       // Get current cursor position
       const cursorPos = screen.getCursorScreenPoint();
       const windowPos = win.getPosition();
 
       this.dragOffset = this._resolveGrabOffset(win, cursorPos, windowPos, grabOffset);
-      this.dragSize = this._readWindowSize(win);
+      this.dragSize = this._getTargetSize(win);
+      this.lastCommandedPosition = Array.isArray(windowPos)
+        ? { x: windowPos[0], y: windowPos[1] }
+        : windowPos && Number.isFinite(windowPos.x) && Number.isFinite(windowPos.y)
+          ? { x: windowPos.x, y: windowPos.y }
+          : null;
 
       // Nothing moves until the pointer proves this is a drag and not a click.
       this.dragStartCursor = { x: cursorPos.x, y: cursorPos.y };
@@ -182,6 +280,8 @@ class DragManager {
     } catch (error) {
       console.error("Failed to start window drag:", error);
       this.isDragging = false;
+      this.dragGeometry = null;
+      this.lastCommandedPosition = null;
       return { success: false, message: error.message };
     }
   }
@@ -208,6 +308,8 @@ class DragManager {
       this.dragArmed = false;
       this.dragStartedAt = null;
       this.dragSize = null;
+      this.dragGeometry = null;
+      this.lastCommandedPosition = null;
       this.stopMouseTracking();
       debugLogger.info("Window drag stopped", undefined, "window-drag");
       return { success: true };
@@ -265,6 +367,7 @@ class DragManager {
       // top of the file. The size has to travel with every single move, or
       // Windows re-derives it from the rounded rectangle and inflates it.
       this.activeWindow.setBounds({ x: clamped.x, y: clamped.y, width, height });
+      this.lastCommandedPosition = { x: clamped.x, y: clamped.y };
     } catch (error) {
       console.error("Error updating window position:", error);
       this.stopWindowDrag("error");
