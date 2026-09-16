@@ -40,6 +40,19 @@ const {
   WindowPositionUtil,
 } = require("./windowConfig");
 const AGENT_DICTATION_PILL_SIZE = Object.freeze({ ...WINDOW_SIZES.BASE });
+// Windows pill hit-testing (see _computePillHitRect). The box has to cover the
+// widest pill state plus the control that appears beside it on hover:
+// VOICE_PILL_FOOTPRINT.recording (98) + VOICE_PILL_CANCEL gap (8) + size (28)
+// = 134, then margin for the 12px dock inset and the pill's shadow.
+const PILL_HIT_WIDTH = 156;
+// VOICE_PILL_FOOTPRINT.idle height (40) + the 12px dock inset + the same margin.
+const PILL_HIT_HEIGHT = 64;
+// Fast enough that the pill is already interactive by the time a pointer
+// crossing the headroom reaches it, cheap enough to be free (one cursor read).
+const PILL_HIT_POLL_MS = 60;
+// The size-ladder keys that mean "the window is showing the pill". Every other
+// key is a surface the user is meant to click anywhere on.
+const PILL_SIZE_KEYS = new Set(["BASE", "RECORDING"]);
 const { centeredBounds, clampedBounds } = require("./onboardingWindowBounds");
 const { ONBOARDING_DEMO_KINDS, isOnboardingInputAllowed } = require("./onboardingInputPolicy");
 const { createHotkeyRepeatGate } = require("./hotkeyRepeatGate");
@@ -93,6 +106,15 @@ class WindowManager {
     this._floatingIconAutoHide = false;
     this._panelStartPosition = "bottom-right";
     this._activeHorizontalDirection = null;
+    // Reported by the renderer (see setPillHitRegion): the real on-screen box of
+    // the pill and its siblings, in CSS px relative to the window's content.
+    // Null until the first report, and again whenever the pill is hidden.
+    this._pillHitRegion = null;
+    this._pillHitRegionReported = false;
+    // Which entry of the size ladder the window is currently showing. The pill
+    // hit-test needs to know "is this the pill or a real surface", and this is
+    // the only answer that cannot be wrong -- see _computePillHitRect.
+    this._mainWindowSizeKey = "BASE";
     this._isDictatingToggle = false;
     this._dictationLifecycleState = DICTATION_LIFECYCLE.IDLE;
     this._dictationInputKind = DICTATION_INPUT_KIND.DICTATION;
@@ -122,6 +144,7 @@ class WindowManager {
     });
 
     this.setMainWindowInteractivity(false);
+    this.startPillHitTesting();
     this.registerMainWindowEvents();
     this.registerAssistantSelectionContextMenu();
 
@@ -236,8 +259,12 @@ class WindowManager {
     }
 
     if (process.platform === "win32") {
-      // Windows click-through forwarding is unreliable for this floating panel.
+      // Windows click-through forwarding is unreliable for this floating panel,
+      // so the panel stays interactive here and the empty headroom around the
+      // pill is reclaimed by _updatePillHitTest() polling the real cursor
+      // position instead of trusting forwarded mouse events.
       this.mainWindow.setIgnoreMouseEvents(false);
+      this._pillHitInteractive = true;
       return;
     }
 
@@ -267,6 +294,216 @@ class WindowManager {
       if (!win.isDestroyed()) win.setIgnoreMouseEvents(false);
       throw error;
     }
+  }
+
+  // --- Windows pill hit-testing -------------------------------------------
+  //
+  // The pill window is WINDOW_SIZES.BASE (208x120) but the pill itself is only
+  // 40x40 idle / 98x36 recording, docked 12px from a bottom corner. The rest is
+  // deliberate headroom so the hover tooltip and the glow halo are not clipped
+  // by the window bounds. macOS and Linux make that headroom click-through;
+  // Windows could not, because setIgnoreMouseEvents(..., { forward: true })
+  // does not reliably deliver the mousemove needed to turn interactivity back
+  // on, so the whole box stayed interactive and roughly 90% of it became an
+  // invisible wall over whatever sits behind it.
+  //
+  // Polling the OS cursor sidesteps forwarding entirely: the main process
+  // already knows the window bounds and which corner the pill docks to, so it
+  // can decide interactivity without the renderer reporting anything.
+  //
+  // Every uncertain case resolves to interactive. Losing a click on the pill is
+  // much worse than leaving some headroom blocked, so anything unexpected —
+  // an open panel, a window larger than the pill box, a missing display —
+  // keeps the old always-interactive behaviour.
+  //
+  // The renderer reports the pill's real box (setPillHitRegion) and that is what
+  // this uses when available. The constant-sized fallback below is a guess made
+  // from the widest state the pill can reach, so it blocks roughly six times the
+  // area of an idle pill; it exists only for the frames before the first report.
+
+  /** Renderer-reported interactive box, in CSS px relative to the window's
+   *  content origin. Passing null (pill hidden, or nothing measurable) drops
+   *  back to the constant-sized fallback. */
+  setPillHitRegion(region) {
+    // A report having arrived at all is the useful signal: from here on, "no
+    // region" means the pill is hidden and nothing should capture, rather than
+    // "the renderer has not spoken yet" -- which is the only case the guessed
+    // fallback box is for.
+    this._pillHitRegionReported = true;
+    if (!region) {
+      this._pillHitRegion = null;
+      return;
+    }
+    const { x, y, width, height } = region;
+    const valid =
+      [x, y, width, height].every((n) => typeof n === "number" && Number.isFinite(n)) &&
+      width > 0 &&
+      height > 0;
+    this._pillHitRegion = valid ? { x, y, width, height } : null;
+  }
+
+  _computePillHitRect() {
+    if (!this.mainWindow || this.mainWindow.isDestroyed()) return null;
+
+    let bounds;
+    try {
+      bounds = this.mainWindow.getBounds();
+    } catch {
+      return null;
+    }
+    if (!bounds || !Number.isFinite(bounds.width) || !Number.isFinite(bounds.height)) {
+      return null;
+    }
+
+    // Anything but the pill is a real surface (menu, toast, error card,
+    // assistant panel) whose whole area is content. Never hit-test those.
+    //
+    // This used to ask whether the window measured larger than WINDOW_SIZES.BASE,
+    // and that test is unusable: getBounds() reports DIP, so on a display at
+    // fractional scaling the round-trip through physical pixels lands a couple
+    // of pixels over. Measured on a 137% display, a window created at 208x120
+    // comes back as 210x122 -- so the pill always looked like a "real surface"
+    // and this whole mechanism silently never ran, leaving the full window
+    // capturing clicks. The size ladder's own key cannot drift that way.
+    if (!PILL_SIZE_KEYS.has(this._mainWindowSizeKey)) return null;
+
+    // Preferred path: the box the renderer actually measured. Clamped to the
+    // window because a rect reaching outside it can only be a stale report, and
+    // an over-wide rect would silently restore the wall this exists to remove.
+    const region = this._pillHitRegion;
+    if (region) {
+      const left = Math.max(0, Math.min(region.x, bounds.width));
+      const top = Math.max(0, Math.min(region.y, bounds.height));
+      const right = Math.max(left, Math.min(region.x + region.width, bounds.width));
+      const bottom = Math.max(top, Math.min(region.y + region.height, bounds.height));
+      if (right > left && bottom > top) {
+        return {
+          x: bounds.x + left,
+          y: bounds.y + top,
+          width: right - left,
+          height: bottom - top,
+        };
+      }
+      // A pill measured entirely outside its own window is not something to
+      // guess about: nothing is interactive until the next report.
+      return { x: bounds.x, y: bounds.y, width: 0, height: 0 };
+    }
+
+    // The renderer is reporting and says there is no pill (hidden, suppressed
+    // mid-transition). Leaving the guessed box interactive here would put an
+    // invisible wall over the desktop with nothing drawn under it.
+    if (this._pillHitRegionReported) {
+      return { x: bounds.x, y: bounds.y, width: 0, height: 0 };
+    }
+
+    // Pill (98 recording) + gap (8) + cancel (28) = 134, plus margin for the
+    // 12px dock inset and the pill's own shadow.
+    const width = Math.min(PILL_HIT_WIDTH, bounds.width);
+    const height = Math.min(PILL_HIT_HEIGHT, bounds.height);
+    const y = bounds.y + bounds.height - height; // every dock class is bottom-anchored
+
+    // Which corner the pill draws itself into is decided by where the window
+    // actually sits (resolveVoicePillDock takes the live horizontal direction),
+    // not by the saved preference. Reading _panelStartPosition here instead put
+    // the box in the opposite corner from the pill for anyone who had dragged
+    // the pill across the display centre: the pill was drawn left, the box was
+    // opened on the right, and clicking the pill did nothing at all.
+    let x;
+    if (this._panelStartPosition === "center") {
+      x = bounds.x + Math.round((bounds.width - width) / 2);
+    } else if (this.getMainWindowHorizontalDirection() === "left") {
+      x = bounds.x;
+    } else {
+      x = bounds.x + bounds.width - width;
+    }
+
+    return { x, y, width, height };
+  }
+
+  _updatePillHitTest() {
+    if (process.platform !== "win32") return;
+    if (!this.mainWindow || this.mainWindow.isDestroyed()) return;
+    if (!this.mainWindow.isVisible()) return;
+
+    // Never re-hit-test mid-drag. The window is chasing the cursor, so the
+    // cursor can fall outside the pill rect for a frame; going click-through
+    // there costs the renderer its mouseup, stopWindowDrag() is never called,
+    // and the window follows the cursor forever -- it "drags itself" and can
+    // shoot across the screen. The press already proved intent; hold
+    // interactivity for the whole gesture.
+    if (this.dragManager?.isDragActive?.()) {
+      if (this._pillHitInteractive !== true) {
+        this._pillHitInteractive = true;
+        try {
+          this.mainWindow.setIgnoreMouseEvents(false);
+        } catch {}
+      }
+      return;
+    }
+
+    // An open panel owns its whole surface.
+    const rect = this._assistantPanelOpen ? null : this._computePillHitRect();
+
+    let interactive = true;
+    if (rect) {
+      try {
+        const cursor = screen.getCursorScreenPoint();
+        interactive =
+          cursor.x >= rect.x &&
+          cursor.x < rect.x + rect.width &&
+          cursor.y >= rect.y &&
+          cursor.y < rect.y + rect.height;
+      } catch {
+        interactive = true;
+      }
+    }
+
+    if (interactive === this._pillHitInteractive) return;
+    this._pillHitInteractive = interactive;
+    try {
+      // Deliberately without { forward: true }. Forwarding makes Electron
+      // install a global WH_MOUSE_LL hook so a click-through window can still
+      // see mousemove -- and Windows silently drops a low-level hook whose
+      // process stalls past LowLevelHooksTimeout, which for this app means any
+      // heavy transcription tick. Once dropped, the pill stops responding
+      // entirely until it is recreated. Forwarding also flickers the cursor
+      // (electron#35414) and used to stack duplicate hooks (electron#51064).
+      // None of it is needed here: this poller reads the OS cursor directly and
+      // hands interactivity back before the pointer arrives.
+      this.mainWindow.setIgnoreMouseEvents(!interactive);
+    } catch {
+      this._pillHitInteractive = true;
+    }
+  }
+
+  startPillHitTesting() {
+    if (process.platform !== "win32") return;
+    if (process.env.OPENWHISPR_DISABLE_PILL_HITTEST === "1") {
+      debugLogger.info("Pill hit-testing disabled by env", {}, "window");
+      return;
+    }
+    if (this._pillHitTestInterval) return;
+    // A region reported by a previous renderer describes a window that no longer
+    // exists. Wait for this one to report before trusting any box.
+    this._pillHitRegion = null;
+    this._pillHitRegionReported = false;
+    this._pillHitInteractive = true;
+    this._pillHitTestInterval = setInterval(() => this._updatePillHitTest(), PILL_HIT_POLL_MS);
+  }
+
+  stopPillHitTesting() {
+    if (this._pillHitTestInterval) {
+      clearInterval(this._pillHitTestInterval);
+      this._pillHitTestInterval = null;
+    }
+    this._pillHitRegion = null;
+    this._pillHitRegionReported = false;
+    if (this.mainWindow && !this.mainWindow.isDestroyed() && this._pillHitInteractive === false) {
+      try {
+        this.mainWindow.setIgnoreMouseEvents(false);
+      } catch {}
+    }
+    this._pillHitInteractive = true;
   }
 
   // Only the meeting prompt owns this: another overlay reporting its own hover
@@ -409,6 +646,10 @@ class WindowManager {
     if (!this.mainWindow || this.mainWindow.isDestroyed()) {
       return { success: false, error: "Main window not available" };
     }
+    // Recorded before the work is done, not after: every return below leaves the
+    // window showing this key, and the hit-test reads it from a timer that must
+    // never observe a stale "this is still the pill" during a grow.
+    this._mainWindowSizeKey = sizeKey;
     // Bounds, display and the work-area fit are all sampled inside the queue:
     // a queued cross-display move would otherwise leave a fit computed at
     // enqueue time describing the display the window is about to leave.
@@ -1224,13 +1465,13 @@ class WindowManager {
     return await this.dragManager.stopWindowDrag();
   }
 
-  async startWindowDrag() {
+  async startWindowDrag(grabOffset = null) {
     // A lookup started by a prior hotkey must never land while the user is
     // taking ownership of the panel position.
     this._mainWindowPlacementCoordinator.cancelPending();
     this._dragStartBounds =
       this.mainWindow && !this.mainWindow.isDestroyed() ? this.mainWindow.getBounds() : null;
-    return await this.dragManager.startWindowDrag();
+    return await this.dragManager.startWindowDrag(null, grabOffset);
   }
 
   async stopWindowDrag() {
@@ -2014,6 +2255,7 @@ class WindowManager {
     this.mainWindow.on("move", () => this.positionAgentDictationPill());
 
     this.mainWindow.on("closed", () => {
+      this.stopPillHitTesting();
       this.dragManager.cleanup();
       const pillWindow = this.agentDictationPillWindow;
       if (pillWindow && !pillWindow.isDestroyed()) pillWindow.close();

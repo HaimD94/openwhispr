@@ -1982,6 +1982,9 @@ declare global {
       startControlPanelDrag: () => Promise<void>;
       stopControlPanelDrag: () => Promise<void>;
       setMainWindowInteractivity: (interactive: boolean) => Promise<void>;
+      setPillHitRegion: (
+        region: { x: number; y: number; width: number; height: number } | null
+      ) => void;
       setMainWindowInputRegion: (region: MainWindowInputRegion | null) => Promise<boolean>;
       onMainWindowVisibilityChanged: (callback: (visible: boolean) => void) => () => void;
       setNotificationInteractivity: (interactive: boolean) => Promise<void>;

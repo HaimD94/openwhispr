@@ -14,6 +14,7 @@ import { useMainWindowSizeOwner } from "./hooks/useMainWindowSizeOwner";
 import { useMainProcessNotifications } from "./hooks/useMainProcessNotifications";
 import { useListeningEntrancePhase } from "./hooks/useListeningEntrancePhase";
 import { useWindowResizeCompensation } from "./hooks/useWindowResizeCompensation";
+import usePillHitRegion from "./hooks/usePillHitRegion";
 import { useSettingsStore } from "./stores/settingsStore";
 import { isAgentAllowed } from "./stores/policyRules";
 import { usePolicyStore } from "./stores/policyStore";
@@ -68,7 +69,7 @@ export default function App() {
     useToast();
   const { t } = useTranslation();
   const { hotkey } = useHotkey();
-  const { isDragging, handleMouseDown, handleMouseUp } = useWindowDrag();
+  const { isDragging, handlePointerDown, handleMouseDown, handleMouseUp } = useWindowDrag();
 
   const [dragStartPos, setDragStartPos] = useState(null);
   const [hasDragged, setHasDragged] = useState(false);
@@ -635,6 +636,10 @@ export default function App() {
     pillInteractive: pillIsInteractive && !pillVisuallySuppressed,
   });
 
+  // Tells the main process where the pill really is, so only the pill blocks
+  // clicks and the empty headroom around it stays click-through (Windows).
+  usePillHitRegion(!pillVisuallySuppressed);
+
   return (
     <div className="dictation-window">
       {/* The panel footer can hide this pill, but never unmounts it. */}
@@ -652,6 +657,7 @@ export default function App() {
         <div
           ref={pillPresenceRef}
           className="assistant-pill-presence relative flex items-center"
+          data-pill-hit=""
           data-assistant-footer-phase={assistant.open ? assistant.footerPhase : undefined}
           data-horizontal-direction={voiceHorizontalDirection}
           style={{
@@ -704,6 +710,10 @@ export default function App() {
                       ? t("transcriptionPreview.label")
                       : micTooltip
               }
+              onPointerDown={(e) => {
+                if (anyPanelMounted) return;
+                handlePointerDown(e);
+              }}
               onMouseDown={(e) => {
                 if (anyPanelMounted) {
                   setHasDragged(false);
@@ -733,8 +743,16 @@ export default function App() {
                 setDragStartPos(null);
               }}
               onClick={(e) => {
-                activateVoicePill();
                 e.preventDefault();
+                // The pointer stays over the pill for the whole drag, so the
+                // release fires a click too. hasDragged already distinguishes
+                // the two for the context menu; without the same guard here,
+                // putting the pill down started a dictation.
+                if (hasDragged) {
+                  setHasDragged(false);
+                  return;
+                }
+                activateVoicePill();
               }}
               onKeyDown={(event) => {
                 if (event.repeat || !isVoicePillActivationKey(event.key)) return;
