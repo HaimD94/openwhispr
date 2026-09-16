@@ -480,6 +480,25 @@ export default function App() {
     cancelProcessing,
   ]);
 
+  // Sync command menu visibility to the main process so it can toggle window
+  // focusability on Windows/Linux (allowing blur to detect outside clicks).
+  useEffect(() => {
+    window.electronAPI?.setCommandMenuOpen?.(isCommandMenuOpen);
+    return () => {
+      window.electronAPI?.setCommandMenuOpen?.(false);
+    };
+  }, [isCommandMenuOpen]);
+
+  // Main-process blur events dismiss the command menu when clicking outside.
+  useEffect(() => {
+    const unsubscribe = window.electronAPI?.onCommandMenuDismiss?.(() => {
+      setIsCommandMenuOpen(false);
+    });
+    return () => {
+      unsubscribe?.();
+    };
+  }, []);
+
   // Determine current mic state
   const getMicState = () => {
     if (isRecording && (micCaptureStatus === "reconnecting" || micCaptureStatus === "unavailable"))
@@ -794,6 +813,7 @@ export default function App() {
               anchor={voicePillDock === "center" ? "center" : voiceHorizontalDirection}
               setWindowInteractivity={setWindowInteractivity}
               onToggleListening={() => {
+                setIsCommandMenuOpen(false);
                 toggleListening();
               }}
               onAskAssistant={() => {
