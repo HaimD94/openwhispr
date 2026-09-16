@@ -53,6 +53,10 @@ const PILL_HIT_POLL_MS = 60;
 // The size-ladder keys that mean "the window is showing the pill". Every other
 // key is a surface the user is meant to click anywhere on.
 const PILL_SIZE_KEYS = new Set(["BASE", "RECORDING"]);
+// electron#9477: at fractional DPI a window commanded to WxH reports back a
+// pixel or two larger. Within this distance of the size the current key
+// commanded, the reported size is that rounding, not a different window.
+const SIZE_ROUNDING_TOLERANCE_PX = 8;
 const { centeredBounds, clampedBounds } = require("./onboardingWindowBounds");
 const { ONBOARDING_DEMO_KINDS, isOnboardingInputAllowed } = require("./onboardingInputPolicy");
 const { createHotkeyRepeatGate } = require("./hotkeyRepeatGate");
@@ -264,6 +268,16 @@ class WindowManager {
     // still call blur() below.
     if (Boolean(open) === this._commandMenuOpen) return;
     this._commandMenuOpen = Boolean(open);
+    // TEMPORARY diagnostics (see _logMainWindowResize).
+    debugLogger.debug(
+      "Command menu focus transition",
+      {
+        open: this._commandMenuOpen,
+        focused: this.mainWindow?.isFocused?.() ?? null,
+        bounds: this.mainWindow?.getBounds?.() ?? null,
+      },
+      "window-resize"
+    );
     if (process.platform === "darwin") {
       return;
     }
@@ -622,21 +636,42 @@ class WindowManager {
     // entrance commit, mic warm-up), so wait for its explicit ack; the
     // timeout only covers an unresponsive or torn-down renderer.
     const token = ++this._resizeMaskTokenCounter;
+    const startedAt = Date.now();
     const ackPromise = new Promise((resolve) => {
       const listener = (_event, ackToken) => {
         if (ackToken !== token) return;
         ipcMain.removeListener("main-window-resize-mask-ready", listener);
         clearTimeout(timeout);
-        resolve();
+        resolve({ waitedMs: Date.now() - startedAt, timedOut: false });
       };
       const timeout = setTimeout(() => {
         ipcMain.removeListener("main-window-resize-mask-ready", listener);
-        resolve();
+        resolve({ waitedMs: Date.now() - startedAt, timedOut: true });
       }, 60);
       ipcMain.on("main-window-resize-mask-ready", listener);
     });
     this.mainWindow.webContents.send("main-window-will-resize", { bounds, anchor, token });
-    await ackPromise;
+    return await ackPromise;
+  }
+
+  // TEMPORARY diagnostics for a brief pill jump when the command menu closes.
+  // Remove once the cause is known.
+  _logMainWindowResize(fromKey, toKey, live, next, anchor, mask) {
+    debugLogger.debug(
+      "Main window resize",
+      {
+        from: fromKey,
+        to: toKey,
+        live,
+        next,
+        anchor,
+        maskWaitMs: mask?.waitedMs ?? null,
+        maskTimedOut: mask?.timedOut ?? null,
+        focused: this.mainWindow?.isFocused?.() ?? null,
+        after: this.mainWindow?.getBounds?.() ?? null,
+      },
+      "window-resize"
+    );
   }
 
   _enqueueMainWindowMutation(run) {
@@ -681,11 +716,26 @@ class WindowManager {
     // Recorded before the work is done, not after: every return below leaves the
     // window showing this key, and the hit-test reads it from a timer that must
     // never observe a stale "this is still the pill" during a grow.
+    const previousSizeKey = this._mainWindowSizeKey;
     this._mainWindowSizeKey = sizeKey;
     // Bounds, display and the work-area fit are all sampled inside the queue:
     // a queued cross-display move would otherwise leave a fit computed at
     // enqueue time describing the display the window is about to leave.
-    const currentBounds = this.mainWindow.getBounds();
+    const liveBounds = this.mainWindow.getBounds();
+    // Everything below reasons about the size this window was last commanded
+    // to, not the size Windows reports back. At 123% scaling a BASE window
+    // reports 209x121, so the exact-size check that captures the pre-grow
+    // bounds never matched and nothing was restored; the shrink re-anchored
+    // on the inflated height instead and the pill came back 2px lower after
+    // every menu. The same mismatch defeated the same-footprint dedupe below,
+    // so recording edges called setBounds they were meant to skip.
+    const commandedSize = WINDOW_SIZES[previousSizeKey];
+    const currentBounds =
+      commandedSize &&
+      Math.abs(liveBounds.width - commandedSize.width) <= SIZE_ROUNDING_TOLERANCE_PX &&
+      Math.abs(liveBounds.height - commandedSize.height) <= SIZE_ROUNDING_TOLERANCE_PX
+        ? { ...liveBounds, width: commandedSize.width, height: commandedSize.height }
+        : liveBounds;
     const display = this._getMainWindowDisplayFor(currentBounds);
     const newSize = this._resolveMainWindowSize(
       sizeKey,
@@ -737,12 +787,20 @@ class WindowManager {
         this._notifyMainWindowHorizontalDirection();
         return { success: true, bounds: restored, changed: false };
       }
-      await this._prepareRendererForMainWindowResize(restored, restoreAnchor);
+      const restoreMask = await this._prepareRendererForMainWindowResize(restored, restoreAnchor);
       if (!this.mainWindow || this.mainWindow.isDestroyed()) {
         return { success: false, message: "Window not available" };
       }
       this._lastResizeBounds = restored;
       this.mainWindow.setBounds(restored);
+      this._logMainWindowResize(
+        previousSizeKey,
+        sizeKey,
+        liveBounds,
+        restored,
+        "restore",
+        restoreMask
+      );
       this._activeHorizontalDirection = null;
       this._notifyMainWindowHorizontalDirection();
       return { success: true, bounds: restored, changed: true };
@@ -812,11 +870,12 @@ class WindowManager {
       return { success: true, bounds: currentBounds, changed: false };
     }
 
-    await this._prepareRendererForMainWindowResize(newBounds, position);
+    const mask = await this._prepareRendererForMainWindowResize(newBounds, position);
     if (!this.mainWindow || this.mainWindow.isDestroyed()) {
       return { success: false, message: "Window not available" };
     }
     this.mainWindow.setBounds(newBounds);
+    this._logMainWindowResize(previousSizeKey, sizeKey, liveBounds, newBounds, position, mask);
     this._lastResizeBounds = newBounds;
     if (sizeKey === "BASE") {
       this._activeHorizontalDirection = null;
