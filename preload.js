@@ -558,6 +558,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.invoke("resize-dictation-error-window-to-content", surfaceHeight),
   setAssistantPanelOpen: (open) => ipcRenderer.invoke("set-assistant-panel-open", open),
   setAssistantPanelBusy: (busy) => ipcRenderer.invoke("set-assistant-panel-busy", busy),
+  setCommandMenuOpen: (open) => ipcRenderer.send("set-command-menu-open", open),
+  onCommandMenuDismiss: registerListener("command-menu-dismiss", (callback) => () => callback()),
 
   // Update functions
   checkForUpdates: () => ipcRenderer.invoke("check-for-updates"),

@@ -1972,6 +1972,8 @@ declare global {
       ) => Promise<{ success: boolean; bounds?: Electron.Rectangle; message?: string }>;
       setAssistantPanelOpen: (open: boolean) => Promise<{ success: boolean }>;
       setAssistantPanelBusy: (busy: boolean) => Promise<{ success: boolean }>;
+      setCommandMenuOpen: (open: boolean) => void;
+      onCommandMenuDismiss: (callback: () => void) => () => void;
 
       // App management
       cleanupApp: () => Promise<{ success: boolean; message: string; errors?: string[] }>;

@@ -1546,6 +1546,15 @@ class IPCHandlers {
       this.windowManager.setPillHitRegion(region || null);
     });
 
+    // The command menu needs the window to become focusable while open so clicks
+    // outside it fire blur and dismiss it. Only the main window owns the menu.
+    ipcMain.on("set-command-menu-open", (event, open) => {
+      const mainWindow = this.windowManager?.mainWindow;
+      if (!mainWindow || mainWindow.isDestroyed()) return;
+      if (event.sender !== mainWindow.webContents) return;
+      this.windowManager.setCommandMenuOpen(Boolean(open));
+    });
+
     ipcMain.handle("set-main-window-input-region", (event, region) => {
       if (event.sender !== this.windowManager.mainWindow?.webContents) return null;
       return this.windowManager.setMainWindowInputRegion(region);

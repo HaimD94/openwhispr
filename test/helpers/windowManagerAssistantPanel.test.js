@@ -155,9 +155,14 @@ Module._load = originalLoad;
 
 function fakeWindow({ visible }) {
   const calls = [];
+  const listeners = new Map();
+  const sent = [];
   let isVisible = visible;
+  let isFocused = false;
   return {
     calls,
+    listeners,
+    sent,
     window: {
       isDestroyed: () => false,
       isVisible: () => isVisible,
@@ -174,11 +179,28 @@ function fakeWindow({ visible }) {
         isVisible = false;
         calls.push("hide");
       },
-      focus: () => calls.push("focus"),
-      blur: () => calls.push("blur"),
+      isFocused: () => isFocused,
+      focus: () => {
+        isFocused = true;
+        calls.push("focus");
+      },
+      blur: () => {
+        isFocused = false;
+        calls.push("blur");
+      },
+      // What a click in another app does to the real window.
+      loseFocus: () => {
+        isFocused = false;
+      },
       setFocusable: (value) => calls.push(`focusable:${value}`),
       setContentProtection: () => undefined,
       getBounds: () => ({ x: 0, y: 0, width: 96, height: 96 }),
+      on: (event, listener) => listeners.set(event, listener),
+      once: (event, listener) => listeners.set(event, listener),
+      webContents: {
+        isDestroyed: () => false,
+        send: (channel, payload) => sent.push({ channel, payload }),
+      },
     },
   };
 }
@@ -192,7 +214,12 @@ function makeManager(windowState) {
   manager._notifyMainWindowHorizontalDirection = () => undefined;
   manager.showAgentDictationPill = () => undefined;
   manager.hideAgentDictationPill = () => undefined;
-  return { manager, calls: fake.calls };
+  return {
+    manager,
+    calls: fake.calls,
+    listeners: fake.listeners,
+    sent: fake.sent,
+  };
 }
 
 test("the Assistant response context menu exposes native Copy only for selected text", () => {
@@ -482,6 +509,102 @@ test("closing the assistant panel blurs only where opening focused", () => {
       assert.ok(calls.includes("blur"), `${platform} hands the foreground back`);
     });
   }
+});
+
+test("opening the command menu on win32 makes the window focusable and focuses it; closing blurs and drops focusability", () => {
+  withPlatform("win32", () => {
+    const { manager, calls } = makeManager({ visible: false });
+    manager.setCommandMenuOpen(true);
+    assert.deepEqual(calls, ["showInactive", "focusable:true", "focus"]);
+
+    calls.length = 0;
+    manager.setCommandMenuOpen(false);
+    assert.deepEqual(calls, ["blur", "focusable:false"]);
+  });
+});
+
+test("a main-window blur while the command menu is open sends command-menu-dismiss; while closed it sends nothing", () => {
+  const { manager, listeners, sent } = makeManager({ visible: true });
+  manager.registerMainWindowEvents();
+  const onBlur = listeners.get("blur");
+  assert.ok(typeof onBlur === "function", "blur listener must be registered");
+
+  // While closed, blur sends nothing
+  onBlur();
+  assert.deepEqual(sent, []);
+
+  // While open, blur sends command-menu-dismiss
+  manager._commandMenuOpen = true;
+  onBlur();
+  assert.deepEqual(sent, [{ channel: "command-menu-dismiss", payload: undefined }]);
+
+  // If the assistant panel is open, blur sends nothing
+  sent.length = 0;
+  manager._assistantPanelOpen = true;
+  onBlur();
+  assert.deepEqual(sent, []);
+
+  // Settle safety timer
+  listeners.get("ready-to-show")?.();
+});
+
+test("closing the command menu while the assistant panel is open does not blur or drop focusability", () => {
+  withPlatform("win32", () => {
+    const { manager, calls } = makeManager({ visible: true });
+    manager.setCommandMenuOpen(true);
+    calls.length = 0;
+
+    manager._assistantPanelOpen = true;
+    manager.setCommandMenuOpen(false);
+    assert.ok(!calls.includes("blur"), "must not blur while assistant panel is open");
+    assert.ok(
+      !calls.includes("focusable:false"),
+      "must not drop focusability while assistant panel is open"
+    );
+    assert.deepEqual(calls, []);
+  });
+});
+
+test("re-reporting the same command menu state does nothing", () => {
+  withPlatform("win32", () => {
+    const { manager, calls } = makeManager({ visible: true });
+    // The renderer reports "closed" on mount, before any menu ever opened.
+    manager.setCommandMenuOpen(false);
+    assert.deepEqual(calls, []);
+
+    manager.setCommandMenuOpen(true);
+    calls.length = 0;
+    manager.setCommandMenuOpen(true);
+    assert.deepEqual(calls, []);
+  });
+});
+
+test("a menu dismissed by clicking another window drops focusability without blur()", () => {
+  withPlatform("win32", () => {
+    const { manager, calls } = makeManager({ visible: true });
+    manager.setCommandMenuOpen(true);
+    manager.mainWindow.loseFocus();
+    calls.length = 0;
+
+    manager.setCommandMenuOpen(false);
+    assert.ok(!calls.includes("blur"), "focus already left; blur() would move it again");
+    assert.ok(calls.includes("focusable:false"));
+  });
+});
+
+test("on darwin, opening the command menu never calls focus()", () => {
+  withPlatform("darwin", () => {
+    const { manager, calls } = makeManager({ visible: false });
+    manager.setCommandMenuOpen(true);
+    assert.ok(!calls.includes("focus"), "darwin must never call focus()");
+    assert.equal(manager._commandMenuOpen, true);
+    assert.deepEqual(calls, []);
+
+    manager.setCommandMenuOpen(false);
+    assert.ok(!calls.includes("blur"), "darwin must never call blur() on close");
+    assert.equal(manager._commandMenuOpen, false);
+    assert.deepEqual(calls, []);
+  });
 });
 
 test("showDictationPanel still surfaces a hidden window while the panel is open", () => {

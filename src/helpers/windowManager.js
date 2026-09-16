@@ -120,6 +120,7 @@ class WindowManager {
     this._dictationInputKind = DICTATION_INPUT_KIND.DICTATION;
     this._assistantPanelOpen = false;
     this._assistantPanelBusy = false;
+    this._commandMenuOpen = false;
     this._pendingMeetingNoteNavigation = null;
     this._pendingNoteNavigation = null;
 
@@ -251,6 +252,37 @@ class WindowManager {
 
   setAssistantPanelBusy(busy) {
     this._assistantPanelBusy = Boolean(busy);
+  }
+
+  // The command menu needs the pill window to be focusable so clicks outside
+  // it on Windows/Linux blur the window and dismiss the menu. The assistant
+  // panel owns focus/focusability while open, so closing the menu must not
+  // drop focusability if the panel is active.
+  setCommandMenuOpen(open) {
+    // Only transitions do anything. The renderer re-reports the state on every
+    // change and once on mount, and a close that is not a transition would
+    // still call blur() below.
+    if (Boolean(open) === this._commandMenuOpen) return;
+    this._commandMenuOpen = Boolean(open);
+    if (process.platform === "darwin") {
+      return;
+    }
+    if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+      if (this._commandMenuOpen) {
+        if (!this.mainWindow.isVisible()) this.mainWindow.showInactive();
+        this.mainWindow.setFocusable(true);
+        this.mainWindow.focus();
+      } else if (!this._assistantPanelOpen) {
+        // blur() only when the window still holds focus (closed from the menu
+        // itself, or Escape). When the menu closes because the user clicked
+        // another window, focus is already where they put it, and on Windows
+        // blur() is not a no-op: it hands the foreground to the next visible
+        // window in z-order, which need not be the one they clicked.
+        if (this.mainWindow.isFocused?.()) this.mainWindow.blur();
+        this.mainWindow.setFocusable(false);
+      }
+      this.enforceMainWindowOnTop();
+    }
   }
 
   setMainWindowInteractivity(shouldCapture) {
@@ -2261,6 +2293,17 @@ class WindowManager {
     this.mainWindow.on("focus", () => {
       this.enforceMainWindowOnTop();
       if (this._assistantPanelOpen) this.showAgentDictationPill();
+    });
+
+    this.mainWindow.on("blur", () => {
+      if (
+        this._commandMenuOpen &&
+        !this._assistantPanelOpen &&
+        this.mainWindow &&
+        !this.mainWindow.isDestroyed()
+      ) {
+        this.mainWindow.webContents?.send?.("command-menu-dismiss");
+      }
     });
 
     this.mainWindow.on("move", () => this.positionAgentDictationPill());
