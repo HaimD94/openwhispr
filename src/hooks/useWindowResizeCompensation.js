@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { calculateWindowAnchorCompensation } from "../utils/mainWindowResizeCoordinator";
+import logger from "../utils/logger";
 
 // Fractional DPI (Windows 125%/150%) rounds set-vs-reported bounds by up to
 // 2px; the timeout backstops a plan whose bounds never materialize so content
@@ -57,6 +58,12 @@ export function useWindowResizeCompensation() {
       frame = 0;
       if (!plan) return;
       if (performance.now() - plan.installedAt >= PLAN_SETTLE_TIMEOUT_MS) {
+        // TEMPORARY diagnostics (see _logMainWindowResize in windowManager.js).
+        logger.debug(
+          "Resize mask gave up waiting for bounds",
+          { target: plan.bounds, current: currentBounds(), started: plan.started },
+          "window-resize"
+        );
         plan = null;
         clearCompensation();
         return;
@@ -70,6 +77,15 @@ export function useWindowResizeCompensation() {
         if (!differsFrom(current, plan.bounds)) {
           plan.stableFrames += 1;
           if (plan.stableFrames >= 2) {
+            logger.debug(
+              "Resize mask settled",
+              {
+                target: plan.bounds,
+                current,
+                ms: Math.round(performance.now() - plan.installedAt),
+              },
+              "window-resize"
+            );
             plan = null;
             clearCompensation();
             return;
