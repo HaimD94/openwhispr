@@ -1537,6 +1537,15 @@ class IPCHandlers {
       return { success: true };
     });
 
+    // Fire-and-forget: this arrives on every pill resize and must never make the
+    // renderer wait. Only the main window may speak for the pill's geometry.
+    ipcMain.on("set-pill-hit-region", (event, region) => {
+      const mainWindow = this.windowManager?.mainWindow;
+      if (!mainWindow || mainWindow.isDestroyed()) return;
+      if (event.sender !== mainWindow.webContents) return;
+      this.windowManager.setPillHitRegion(region || null);
+    });
+
     ipcMain.handle("set-main-window-input-region", (event, region) => {
       if (event.sender !== this.windowManager.mainWindow?.webContents) return null;
       return this.windowManager.setMainWindowInputRegion(region);
@@ -4335,8 +4344,8 @@ class IPCHandlers {
       return { success: true };
     });
 
-    ipcMain.handle("start-window-drag", async (event) => {
-      return await this.windowManager.startWindowDrag();
+    ipcMain.handle("start-window-drag", async (event, grabOffset) => {
+      return await this.windowManager.startWindowDrag(grabOffset);
     });
 
     ipcMain.handle("stop-window-drag", async (event) => {
