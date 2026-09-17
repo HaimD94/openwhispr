@@ -322,3 +322,9 @@ src/assets/fonts/yowza/*.otf
 
 # Local scratch output from the Superpowers Claude Code plugin (SDD fix reports etc.).
 .superpowers/
+
+# Ad-hoc local electron-builder output directories from manual packaging runs
+# (-c.directories.output=installer-outN / build-out). The repo's own output
+# dir is dist/ (electron-builder.json), already ignored above.
+build-out/
+installer-out*/
