@@ -115,6 +115,7 @@ class WindowManager {
     // Null until the first report, and again whenever the pill is hidden.
     this._pillHitRegion = null;
     this._pillHitRegionReported = false;
+    this._firstRendererRegionLogged = false; // TEMPORARY diagnostics (first-click bug)
     // Which entry of the size ladder the window is currently showing. The pill
     // hit-test needs to know "is this the pill or a real surface", and this is
     // the only answer that cannot be wrong -- see _computePillHitRect.
@@ -371,6 +372,12 @@ class WindowManager {
    *  content origin. Passing null (pill hidden, or nothing measurable) drops
    *  back to the constant-sized fallback. */
   setPillHitRegion(region) {
+    // TEMPORARY diagnostics (first-click bug)
+    if (!this._firstRendererRegionLogged) {
+      this._firstRendererRegionLogged = true;
+      debugLogger?.debug?.("First renderer pill hit region arrived", { region }, "pill-click");
+    }
+
     // A report having arrived at all is the useful signal: from here on, "no
     // region" means the pill is hidden and nothing should capture, rather than
     // "the renderer has not spoken yet" -- which is the only case the guessed
@@ -483,6 +490,22 @@ class WindowManager {
         try {
           this.mainWindow.setIgnoreMouseEvents(false);
         } catch {}
+        // TEMPORARY diagnostics (first-click bug)
+        let cursor = null;
+        try {
+          cursor = screen.getCursorScreenPoint();
+        } catch {}
+        debugLogger?.debug?.(
+          "Pill hit interactivity changed",
+          {
+            interactive: true,
+            cursor,
+            rect: null,
+            source: "none",
+            regionReported: Boolean(this._pillHitRegionReported),
+          },
+          "pill-click"
+        );
       }
       return;
     }
@@ -490,16 +513,20 @@ class WindowManager {
     // An open panel owns its whole surface.
     const rect = this._assistantPanelOpen ? null : this._computePillHitRect();
 
+    let cursor = null;
+    try {
+      cursor = screen.getCursorScreenPoint();
+    } catch {}
+
     let interactive = true;
     if (rect) {
-      try {
-        const cursor = screen.getCursorScreenPoint();
+      if (cursor) {
         interactive =
           cursor.x >= rect.x &&
           cursor.x < rect.x + rect.width &&
           cursor.y >= rect.y &&
           cursor.y < rect.y + rect.height;
-      } catch {
+      } else {
         interactive = true;
       }
     }
@@ -520,6 +547,29 @@ class WindowManager {
     } catch {
       this._pillHitInteractive = true;
     }
+
+    // TEMPORARY diagnostics (first-click bug)
+    let source = "none";
+    if (rect) {
+      if (this._pillHitRegion) {
+        source = "region";
+      } else if (!this._pillHitRegionReported) {
+        source = "guess";
+      } else {
+        source = "none";
+      }
+    }
+    debugLogger?.debug?.(
+      "Pill hit interactivity changed",
+      {
+        interactive: this._pillHitInteractive,
+        cursor,
+        rect,
+        source,
+        regionReported: Boolean(this._pillHitRegionReported),
+      },
+      "pill-click"
+    );
   }
 
   startPillHitTesting() {
@@ -2350,11 +2400,23 @@ class WindowManager {
     });
 
     this.mainWindow.on("focus", () => {
+      // TEMPORARY diagnostics (first-click bug)
+      const isFocusable =
+        typeof this.mainWindow?.isFocusable === "function"
+          ? this.mainWindow.isFocusable()
+          : undefined;
+      debugLogger?.debug?.("Main window focus", { isFocusable }, "pill-click");
       this.enforceMainWindowOnTop();
       if (this._assistantPanelOpen) this.showAgentDictationPill();
     });
 
     this.mainWindow.on("blur", () => {
+      // TEMPORARY diagnostics (first-click bug)
+      const isFocusable =
+        typeof this.mainWindow?.isFocusable === "function"
+          ? this.mainWindow.isFocusable()
+          : undefined;
+      debugLogger?.debug?.("Main window blur", { isFocusable }, "pill-click");
       if (
         this._commandMenuOpen &&
         !this._assistantPanelOpen &&
