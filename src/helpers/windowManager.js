@@ -567,6 +567,11 @@ class WindowManager {
     if (!this.mainWindow || this.mainWindow.isDestroyed()) return;
     if (!this.mainWindow.isVisible()) return;
 
+    // The renderer can report its first hit region a few ms before the window is
+    // shown (measured on the user's machine), when priming must skip; the first
+    // visible poll after that report is the retry. A no-op once primed.
+    if (this._pillHitRegionReported) this._primePillMouseActivation();
+
     // Never re-hit-test mid-drag. The window is chasing the cursor, so the
     // cursor can fall outside the pill rect for a frame; going click-through
     // there costs the renderer its mouseup, stopWindowDrag() is never called,

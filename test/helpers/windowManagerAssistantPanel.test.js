@@ -1000,6 +1000,21 @@ test("on win32 the first region report primes mouse activation with focus and bl
   });
 });
 
+test("a region reported before the window is shown primes on the first visible hit-test poll", () => {
+  withPlatform("win32", () => {
+    const { manager, calls } = makeManager({ visible: false });
+    manager.setPillHitRegion({ x: 0, y: 0, width: 96, height: 96 });
+    assert.equal(calls.includes("focus"), false);
+
+    manager.mainWindow.showInactive();
+    manager._updatePillHitTest();
+    const primed = calls.slice(calls.indexOf("focusable:true"));
+    assert.deepEqual(primed.slice(0, 2), ["focusable:true", "focus"]);
+
+    manager._cleanupPillMouseActivation();
+  });
+});
+
 test("on darwin reporting pill hit region does not prime mouse activation", () => {
   withPlatform("darwin", () => {
     const { manager, calls } = makeManager({ visible: true });
