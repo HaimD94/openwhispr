@@ -2176,6 +2176,9 @@
         "dark": "Dark",
         "description": "Control how OpenWhispr looks",
         "light": "Light",
+        "pillTheme": "Icon appearance",
+        "pillThemeAuto": "Match app theme",
+        "pillThemeDescription": "Keep the floating icon light or dark regardless of the app theme",
         "theme": "Theme",
         "themeDescription": "Choose light, dark, or match your system",
         "title": "Appearance"

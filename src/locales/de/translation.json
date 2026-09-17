@@ -2176,6 +2176,9 @@
         "dark": "Dunkel",
         "description": "Steuern Sie das Erscheinungsbild von OpenWhispr",
         "light": "Hell",
+        "pillTheme": "Symbol-Erscheinungsbild",
+        "pillThemeAuto": "App-Design übernehmen",
+        "pillThemeDescription": "Legen Sie fest, ob das schwebende Symbol hell oder dunkel ist, unabhängig vom App-Design",
         "theme": "Design",
         "themeDescription": "Wählen Sie zwischen Hell, Dunkel oder Systemstandard",
         "title": "Darstellung"

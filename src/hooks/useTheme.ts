@@ -2,7 +2,10 @@ import { useEffect } from "react";
 import { useSettings } from "./useSettings";
 
 export function useTheme() {
-  const { theme, setTheme } = useSettings();
+  // pillTheme is read directly off the settings store wherever the pill
+  // renders (App.jsx) — it never touches the document classList like `theme`
+  // does below, so it's just passed through here for SettingsPage's control.
+  const { theme, setTheme, pillTheme, setPillTheme } = useSettings();
 
   useEffect(() => {
     const htmlElement = document.documentElement;
@@ -42,5 +45,5 @@ export function useTheme() {
     }
   }, [theme]);
 
-  return { theme, setTheme };
+  return { theme, setTheme, pillTheme, setPillTheme };
 }

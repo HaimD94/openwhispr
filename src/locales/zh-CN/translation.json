@@ -1883,6 +1883,9 @@
         "dark": "深色",
         "description": "控制 OpenWhispr 的外观",
         "light": "浅色",
+        "pillTheme": "图标外观",
+        "pillThemeAuto": "跟随应用主题",
+        "pillThemeDescription": "选择悬浮图标使用浅色还是深色，与应用主题无关",
         "theme": "主题",
         "themeDescription": "选择浅色、深色或跟随系统",
         "title": "外观"

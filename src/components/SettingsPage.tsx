@@ -1423,7 +1423,7 @@ export default function SettingsPage({
     refreshYdotoolStatus();
   }, [refreshYdotoolStatus]);
 
-  const { theme, setTheme } = useTheme();
+  const { theme, setTheme, pillTheme, setPillTheme } = useTheme();
   const usage = useUsage();
   const billingWorkspaces = useWorkspaceStore((s) => s.workspaces);
   const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId);
@@ -3082,6 +3082,55 @@ export default function SettingsPage({
                           <button
                             key={option.value}
                             onClick={() => setTheme(option.value)}
+                            className={`
+                              flex items-center gap-1 px-2.5 py-1 rounded-[5px] text-xs font-medium
+                              transition-colors duration-100
+                              ${
+                                isSelected
+                                  ? "bg-background dark:bg-surface-raised text-foreground shadow-sm"
+                                  : "text-muted-foreground hover:text-foreground"
+                              }
+                            `}
+                          >
+                            <Icon className={`w-3 h-3 ${isSelected ? "text-primary" : ""}`} />
+                            {option.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </SettingsRow>
+                </SettingsPanelRow>
+                <SettingsPanelRow>
+                  <SettingsRow
+                    label={t("settingsPage.general.appearance.pillTheme")}
+                    description={t("settingsPage.general.appearance.pillThemeDescription")}
+                  >
+                    <div className="inline-flex items-center gap-px p-0.5 bg-muted/60 dark:bg-surface-2 rounded-md">
+                      {(
+                        [
+                          {
+                            value: "light",
+                            icon: Sun,
+                            label: t("settingsPage.general.appearance.light"),
+                          },
+                          {
+                            value: "dark",
+                            icon: Moon,
+                            label: t("settingsPage.general.appearance.dark"),
+                          },
+                          {
+                            value: "auto",
+                            icon: Monitor,
+                            label: t("settingsPage.general.appearance.pillThemeAuto"),
+                          },
+                        ] as const
+                      ).map((option) => {
+                        const Icon = option.icon;
+                        const isSelected = pillTheme === option.value;
+                        return (
+                          <button
+                            key={option.value}
+                            onClick={() => setPillTheme(option.value)}
                             className={`
                               flex items-center gap-1 px-2.5 py-1 rounded-[5px] text-xs font-medium
                               transition-colors duration-100

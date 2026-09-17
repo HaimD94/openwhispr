@@ -411,6 +411,23 @@ export function isVoicePillActivationKey(key) {
 }
 
 /**
+ * Class for the pill's theme-override wrapper (Settings → General → Pill
+ * appearance, `pillTheme` in settingsStore). "auto" needs no class — the pill
+ * just inherits the app's own `.dark` cascade like every other window.
+ * Forcing dark reuses the real `.dark` class so every existing `dark:`
+ * utility and `.dark`-scoped rule already applies to the pill with no special
+ * case; forcing light needs its own `.pill-theme-light` class instead, since
+ * there is no "un-dark" class to borrow — index.css's `dark` custom variant
+ * and the handful of `.dark` rules in dictation-panel.css route around it
+ * explicitly (see the comments there).
+ */
+export function resolvePillThemeClass(pillTheme) {
+  if (pillTheme === "light") return "pill-theme-light";
+  if (pillTheme === "dark") return "dark";
+  return undefined;
+}
+
+/**
  * A fresh request thinks in the floating logo circle. A follow-up that starts
  * from an open response panel keeps that surface mounted so its footer pill
  * can own the thinking feedback without a close/reopen transition.

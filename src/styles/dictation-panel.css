@@ -278,13 +278,21 @@
   stroke: color-mix(in oklab, var(--color-border) 60%, transparent);
 }
 
-/* The idle pill's dark-theme border is softer (dark:border-border/50). */
-.dark .liquid-cancel-skin[data-pill-state="idle"] path {
+/* The idle pill's dark-theme border is softer (dark:border-border/50). The
+   :not() opts back out when a `.pill-theme-light` ancestor (Settings →
+   General → Pill appearance) forces this pill light under a dark app —
+   `.dark` up on <html>/<body> would otherwise still match here. Pinning the
+   pill dark needs no such exception: that just adds the real `.dark` class
+   to its wrapper (see resolvePillThemeClass), so this rule already applies. */
+.dark
+  .liquid-cancel-skin[data-pill-state="idle"]
+  path:not(:where(.pill-theme-light, .pill-theme-light *)) {
   stroke: color-mix(in oklab, var(--color-border) 50%, transparent);
 }
 
-/* Match the pill's shadow-card, which only exists in dark theme. */
-.dark .liquid-cancel-skin {
+/* Match the pill's shadow-card, which only exists in dark theme. Same
+   pill-theme-light exception as above. */
+.dark .liquid-cancel-skin:not(:where(.pill-theme-light, .pill-theme-light *)) {
   filter: drop-shadow(0 1px 3px oklch(0 0 0 / 0.2));
 }
 
@@ -329,7 +337,14 @@
   --signal-head: #f2edff;
 }
 
-:root:not(.dark) .processing-signal-glow {
+/* Light-mode halo/comet are a touch softer. Two cases: no `.dark` ancestor at
+   all (plain light app), or a `.pill-theme-light` ancestor forcing this pill
+   light despite a `.dark` further up (Settings → General → Pill appearance).
+   A pill forced dark needs no matching case here — it just wears the real
+   `.dark` class on its wrapper, so the base (dark) values above already
+   apply to it. */
+.processing-signal-glow:not(:where(.dark, .dark *)),
+.pill-theme-light .processing-signal-glow {
   --signal-halo-opacity: 0.7;
   --signal-comet-opacity: 0.85;
 }

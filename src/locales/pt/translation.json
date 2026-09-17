@@ -1862,6 +1862,9 @@
         "dark": "Escuro",
         "description": "Controle a aparência do OpenWhispr",
         "light": "Claro",
+        "pillTheme": "Aparência do ícone",
+        "pillThemeAuto": "Igual ao tema do app",
+        "pillThemeDescription": "Escolha se o ícone flutuante fica claro ou escuro, independente do tema do app",
         "theme": "Tema",
         "themeDescription": "Escolha claro, escuro ou acompanhe o sistema",
         "title": "Aparência"

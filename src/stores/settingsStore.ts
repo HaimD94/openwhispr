@@ -1190,6 +1190,7 @@ export interface SettingsState
   setMicWarmHoldSeconds: (seconds: number) => void;
 
   setTheme: (value: "light" | "dark" | "auto") => void;
+  setPillTheme: (value: "light" | "dark" | "auto") => void;
   setCloudBackupEnabled: (value: boolean) => void;
   setInsightsSyncEnabled: (value: boolean) => void;
   setTelemetryEnabled: (value: boolean) => void;
@@ -1609,6 +1610,13 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
 
   theme: (() => {
     const v = readString("theme", "auto");
+    if (v === "light" || v === "dark" || v === "auto") return v;
+    return "auto" as const;
+  })(),
+  // Independent of `theme` — lets the floating pill stay pinned light/dark
+  // while every other window keeps following the app theme above.
+  pillTheme: (() => {
+    const v = readString("pillTheme", "auto");
     if (v === "light" || v === "dark" || v === "auto") return v;
     return "auto" as const;
   })(),
@@ -2365,6 +2373,11 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   setTheme: (value: "light" | "dark" | "auto") => {
     if (isBrowser) localStorage.setItem("theme", value);
     set({ theme: value });
+  },
+
+  setPillTheme: (value: "light" | "dark" | "auto") => {
+    if (isBrowser) localStorage.setItem("pillTheme", value);
+    set({ pillTheme: value });
   },
 
   setCloudBackupEnabled: createBooleanSetter("cloudBackupEnabled"),
