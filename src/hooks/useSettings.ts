@@ -110,6 +110,10 @@ export interface PrivacySettings {
 
 export interface ThemeSettings {
   theme: "light" | "dark" | "auto";
+  // Independent of `theme`: lets the floating dictation pill stay pinned to
+  // light or dark while every other window (menus, panels, settings) follows
+  // the app theme above. "auto" means the pill just inherits `theme` as before.
+  pillTheme: "light" | "dark" | "auto";
 }
 
 export interface ChatAgentSettings {
@@ -326,6 +330,7 @@ function useSettingsInternal() {
     meetingHotkeyLayoutMode: store.meetingHotkeyLayoutMode,
     setMeetingHotkeyLayoutMode: store.setMeetingHotkeyLayoutMode,
     theme: store.theme,
+    pillTheme: store.pillTheme,
     setUseLocalWhisper: store.setUseLocalWhisper,
     setWhisperModel: store.setWhisperModel,
     setUiLanguage: store.setUiLanguage,
@@ -374,6 +379,7 @@ function useSettingsInternal() {
     spokenLanguages: store.spokenLanguages,
     setSpokenLanguages: store.setSpokenLanguages,
     setTheme: store.setTheme,
+    setPillTheme: store.setPillTheme,
     activationMode: store.activationMode,
     setActivationMode: store.setActivationMode,
     notificationsEnabled: store.notificationsEnabled,

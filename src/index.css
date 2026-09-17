@@ -2,7 +2,17 @@
 /* Dictation window feature styles (voice pill, assistant/live-transcript panels). */
 @import "./styles/dictation-panel.css";
 
-@custom-variant dark (&:where(.dark, .dark *));
+/* The dictation pill can be pinned to light or dark independent of the app
+   theme (Settings → General → Pill appearance, pillTheme in settingsStore).
+   Forcing dark just adds the real `.dark` class to the pill's wrapper (see
+   resolvePillThemeClass in voicePillPresentation.js), so every existing
+   `.dark`-scoped rule and `dark:` utility already applies to it — nothing
+   below has to know about that case. Forcing light adds `.pill-theme-light`
+   instead, which this variant must actively route AROUND: a `.dark` on
+   <html>/<body> above it would otherwise still win. :where() keeps the
+   addition at zero specificity, like the base variant, so ordinary `dark:`
+   utilities still cascade predictably. */
+@custom-variant dark (&:where(.dark, .dark *):not(:where(.pill-theme-light, .pill-theme-light *)));
 
 @theme {
   /* OpenWhispr Theme — registers color tokens with Tailwind v4.
@@ -52,7 +62,14 @@
   --color-border-active: #4577e9;
 }
 
-:root {
+/* .pill-theme-light redeclares the same light tokens for a pill forced light
+   inside a dark app: custom properties inherit down the DOM, so without this
+   the wrapper would just inherit whatever `.dark` (on <html>/<body> above it)
+   already overrode. Only the color tokens need the override — the rest of
+   this block (easing, radius, fonts, parchment/shadow tokens) is unaffected
+   by `.dark` and reaches the pill by ordinary inheritance either way. */
+:root,
+.pill-theme-light {
   /* Easing. The built-in CSS curves are too weak to read as intentional, so
      onboarding motion uses --onboarding-ease-out for anything entering or
      exiting (starts fast, so the user sees movement at the moment they are
@@ -174,6 +191,54 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.1), inset 0 0 0 1px rgba(255, 255, 255, 0.05),
     0 2px 12px rgba(0, 0, 0, 0.35);
   --shadow-brand-tile: var(--shadow-brand-glass), 0 10px 24px -8px rgb(0 0 0 / 0.6);
+}
+
+/* Mirrors every @theme color token above that `.dark` overrides, so a pill
+   forced light (Settings → General → Pill appearance) redeclares its own
+   light values instead of inheriting whatever `.dark` set higher up on
+   <html>/<body> — custom properties inherit down the DOM regardless of the
+   forcing class sitting between them. Keep in sync with @theme's palette and
+   with `.dark` above: any color either one adds or changes belongs here too.
+   `--shadow-card` has no light-mode value anywhere (light mode simply never
+   sets it, so var(--shadow-card) falls back to `none`) — resetting it here
+   reproduces that absence instead of leaking `.dark`'s value in. */
+.pill-theme-light {
+  --color-primary: #4577e9;
+  --color-primary-foreground: #ffffff;
+  --color-secondary: #f5f5f5;
+  --color-secondary-foreground: #171717;
+  --color-muted: #f5f5f5;
+  --color-muted-foreground: #525252;
+  --color-accent: oklch(0.55 0.22 285);
+  --color-accent-foreground: #ffffff;
+  --color-destructive: #dc2626;
+  --color-destructive-foreground: #ffffff;
+  --color-border: #e5e5e5;
+  --color-input: #f9f6f1;
+  --color-ring: #4577e9;
+  --color-background: #ffffff;
+  --color-foreground: #171717;
+  --color-card: #ffffff;
+  --color-card-foreground: #171717;
+  --color-popover: #ffffff;
+  --color-popover-foreground: #171717;
+  --color-link: #4577e9;
+  --color-success: #16a34a;
+  --color-success-foreground: #ffffff;
+  --color-warning: #d97706;
+  --color-warning-foreground: #ffffff;
+  --color-info: #4577e9;
+  --color-info-foreground: #ffffff;
+  --color-surface-0: #ffffff;
+  --color-surface-1: #fafafa;
+  --color-surface-2: #ffffff;
+  --color-surface-3: #f5f5f5;
+  --color-surface-raised: #f0f0f0;
+  --color-surface-window: #f7f7f7;
+  --color-border-subtle: #e5e5e5;
+  --color-border-hover: #d4d4d4;
+  --color-border-active: #4577e9;
+  --shadow-card: initial;
 }
 
 @layer base {

@@ -1864,6 +1864,9 @@
         "dark": "ダーク",
         "description": "OpenWhispr の外観を設定",
         "light": "ライト",
+        "pillTheme": "アイコンの外観",
+        "pillThemeAuto": "アプリのテーマに合わせる",
+        "pillThemeDescription": "アプリのテーマに関わらず、フローティングアイコンをライトまたはダークに固定できます",
         "theme": "テーマ",
         "themeDescription": "ライト、ダーク、またはシステムに合わせる",
         "title": "外観"

@@ -43,6 +43,7 @@ import {
   resolveVoicePillInteraction,
   VOICE_PILL_FOOTPRINT,
   isVoicePillActivationKey,
+  resolvePillThemeClass,
   shouldActivateVoicePill,
   shouldOfferLiveTranscriptReopen,
   shouldSuppressPillForAssistantActions,
@@ -77,6 +78,8 @@ export default function App() {
   // Floating icon auto-hide setting (read from store, synced via IPC)
   const floatingIconAutoHide = useSettingsStore((s) => s.floatingIconAutoHide);
   const panelStartPosition = useSettingsStore((s) => s.panelStartPosition);
+  // "auto" (the default) needs no class — see resolvePillThemeClass.
+  const pillThemeClass = resolvePillThemeClass(useSettingsStore((s) => s.pillTheme));
   const prevAutoHideRef = useRef(floatingIconAutoHide);
   const [voiceHorizontalDirection, setVoiceHorizontalDirection] = useState(() =>
     resolveVoiceHorizontalDirection(panelStartPosition)
@@ -694,113 +697,119 @@ export default function App() {
             }
           }}
         >
-          <PillTooltip
-            content={canReopenLiveTranscript ? t("transcriptionPreview.label") : micTooltip}
-            disabled={anyPanelMounted}
-            align={panelStartPosition === "center" ? "center" : voiceHorizontalDirection}
-          >
-            <VoicePill
-              ref={buttonRef}
-              variant={anyPanelOpen ? "panel" : "floating"}
-              state={commonPillState}
-              expanded={!anyPanelOpen && isCompactPill}
-              collapseToLogo={
-                listeningEntrance.collapseToLogo || assistantFooter.collapsePillToLogo
-              }
-              waveformVisible={listeningEntrance.waveformVisible}
-              waveformOnlyWhileRecording={anyPanelMounted}
-              integratedWithPanel={liveTranscript.open}
-              liquidFused={cancelSkinActive}
-              agentMode={agentModeActive}
-              showExpandChevron={canReopenLiveTranscript && isHovered}
-              getAudioLevel={getAudioLevel}
-              isDragging={isDragging}
-              horizontalDirection={voiceHorizontalDirection}
-              role={pillIsInteractive ? "button" : "status"}
-              tabIndex={pillIsInteractive ? 0 : undefined}
-              aria-label={
-                canReopenLiveTranscript
-                  ? t("transcriptionPreview.label")
-                  : assistant.mounted
-                    ? t("settingsPage.agentConfig.title")
-                    : liveTranscript.mounted
-                      ? t("transcriptionPreview.label")
-                      : micTooltip
-              }
-              onPointerDown={(e) => {
-                if (anyPanelMounted) return;
-                handlePointerDown(e);
-              }}
-              onMouseDown={(e) => {
-                if (anyPanelMounted) {
-                  setHasDragged(false);
-                  return;
+          {/* display:contents keeps this wrapper out of the flex layout above —
+              it exists only to scope the pill-theme override (index.css) to
+              the pill itself, never to PillCommandMenu, which stays a sibling
+              outside it below. */}
+          <div className={pillThemeClass ? `contents ${pillThemeClass}` : "contents"}>
+            <PillTooltip
+              content={canReopenLiveTranscript ? t("transcriptionPreview.label") : micTooltip}
+              disabled={anyPanelMounted}
+              align={panelStartPosition === "center" ? "center" : voiceHorizontalDirection}
+            >
+              <VoicePill
+                ref={buttonRef}
+                variant={anyPanelOpen ? "panel" : "floating"}
+                state={commonPillState}
+                expanded={!anyPanelOpen && isCompactPill}
+                collapseToLogo={
+                  listeningEntrance.collapseToLogo || assistantFooter.collapsePillToLogo
                 }
-                setIsCommandMenuOpen(false);
-                setDragStartPos({ x: e.clientX, y: e.clientY });
-                setHasDragged(false);
-                handleMouseDown(e);
-              }}
-              onMouseMove={(e) => {
-                if (anyPanelMounted) return;
-                if (dragStartPos && !hasDragged) {
-                  const distance = Math.sqrt(
-                    Math.pow(e.clientX - dragStartPos.x, 2) +
-                      Math.pow(e.clientY - dragStartPos.y, 2)
-                  );
-                  if (distance > 5) {
-                    // 5px threshold for drag
-                    setHasDragged(true);
+                waveformVisible={listeningEntrance.waveformVisible}
+                waveformOnlyWhileRecording={anyPanelMounted}
+                integratedWithPanel={liveTranscript.open}
+                liquidFused={cancelSkinActive}
+                agentMode={agentModeActive}
+                showExpandChevron={canReopenLiveTranscript && isHovered}
+                getAudioLevel={getAudioLevel}
+                isDragging={isDragging}
+                horizontalDirection={voiceHorizontalDirection}
+                role={pillIsInteractive ? "button" : "status"}
+                tabIndex={pillIsInteractive ? 0 : undefined}
+                aria-label={
+                  canReopenLiveTranscript
+                    ? t("transcriptionPreview.label")
+                    : assistant.mounted
+                      ? t("settingsPage.agentConfig.title")
+                      : liveTranscript.mounted
+                        ? t("transcriptionPreview.label")
+                        : micTooltip
+                }
+                onPointerDown={(e) => {
+                  if (anyPanelMounted) return;
+                  handlePointerDown(e);
+                }}
+                onMouseDown={(e) => {
+                  if (anyPanelMounted) {
+                    setHasDragged(false);
+                    return;
                   }
-                }
-              }}
-              onMouseUp={(e) => {
-                if (anyPanelMounted) return;
-                handleMouseUp(e);
-                setDragStartPos(null);
-              }}
-              onClick={(e) => {
-                e.preventDefault();
-                // The pointer stays over the pill for the whole drag, so the
-                // release fires a click too. hasDragged already distinguishes
-                // the two for the context menu; without the same guard here,
-                // putting the pill down started a dictation.
-                if (hasDragged) {
+                  setIsCommandMenuOpen(false);
+                  setDragStartPos({ x: e.clientX, y: e.clientY });
                   setHasDragged(false);
-                  return;
-                }
-                activateVoicePill();
+                  handleMouseDown(e);
+                }}
+                onMouseMove={(e) => {
+                  if (anyPanelMounted) return;
+                  if (dragStartPos && !hasDragged) {
+                    const distance = Math.sqrt(
+                      Math.pow(e.clientX - dragStartPos.x, 2) +
+                        Math.pow(e.clientY - dragStartPos.y, 2)
+                    );
+                    if (distance > 5) {
+                      // 5px threshold for drag
+                      setHasDragged(true);
+                    }
+                  }
+                }}
+                onMouseUp={(e) => {
+                  if (anyPanelMounted) return;
+                  handleMouseUp(e);
+                  setDragStartPos(null);
+                }}
+                onClick={(e) => {
+                  e.preventDefault();
+                  // The pointer stays over the pill for the whole drag, so the
+                  // release fires a click too. hasDragged already distinguishes
+                  // the two for the context menu; without the same guard here,
+                  // putting the pill down started a dictation.
+                  if (hasDragged) {
+                    setHasDragged(false);
+                    return;
+                  }
+                  activateVoicePill();
+                }}
+                onKeyDown={(event) => {
+                  if (event.repeat || !isVoicePillActivationKey(event.key)) return;
+                  event.preventDefault();
+                  activateVoicePill();
+                }}
+                onContextMenu={(e) => {
+                  if (anyPanelMounted) return;
+                  e.preventDefault();
+                  if (!hasDragged) {
+                    setWindowInteractivity(true);
+                    setIsCommandMenuOpen((prev) => !prev);
+                  }
+                }}
+              />
+            </PillTooltip>
+            <LiquidCancelButton
+              visible={voicePillInteraction.cancelVisible}
+              fused={cancelFused}
+              pillWidth={cancelPillFootprint.width}
+              pillHeight={cancelPillFootprint.height}
+              pillState={commonPillState}
+              ariaLabel={
+                isRecording ? t("app.buttons.cancelRecording") : t("app.buttons.cancelProcessing")
+              }
+              onCancel={() => {
+                if (isRecording) cancelRecording();
+                else cancelProcessing();
               }}
-              onKeyDown={(event) => {
-                if (event.repeat || !isVoicePillActivationKey(event.key)) return;
-                event.preventDefault();
-                activateVoicePill();
-              }}
-              onContextMenu={(e) => {
-                if (anyPanelMounted) return;
-                e.preventDefault();
-                if (!hasDragged) {
-                  setWindowInteractivity(true);
-                  setIsCommandMenuOpen((prev) => !prev);
-                }
-              }}
+              onFusedSkinChange={setCancelSkinActive}
             />
-          </PillTooltip>
-          <LiquidCancelButton
-            visible={voicePillInteraction.cancelVisible}
-            fused={cancelFused}
-            pillWidth={cancelPillFootprint.width}
-            pillHeight={cancelPillFootprint.height}
-            pillState={commonPillState}
-            ariaLabel={
-              isRecording ? t("app.buttons.cancelRecording") : t("app.buttons.cancelProcessing")
-            }
-            onCancel={() => {
-              if (isRecording) cancelRecording();
-              else cancelProcessing();
-            }}
-            onFusedSkinChange={setCancelSkinActive}
-          />
+          </div>
           {!anyPanelMounted && isCommandMenuOpen && (
             <PillCommandMenu
               buttonRef={buttonRef}

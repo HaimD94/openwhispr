@@ -1864,6 +1864,9 @@
         "dark": "Scuro",
         "description": "Personalizza l'aspetto di OpenWhispr",
         "light": "Chiaro",
+        "pillTheme": "Aspetto dell'icona",
+        "pillThemeAuto": "Segui il tema dell'app",
+        "pillThemeDescription": "Scegli se l'icona flottante è chiara o scura, indipendentemente dal tema dell'app",
         "theme": "Tema",
         "themeDescription": "Scegli chiaro, scuro o in base al sistema",
         "title": "Aspetto"

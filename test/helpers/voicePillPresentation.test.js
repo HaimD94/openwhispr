@@ -821,3 +821,16 @@ test("activity handed back at close intent stays visible through the content fad
     true
   );
 });
+
+test("pillTheme resolves to a wrapper class, or none for auto", async () => {
+  const { resolvePillThemeClass } = await load();
+
+  // Forcing dark reuses the real `.dark` class so the pill inherits every
+  // existing `.dark`-scoped rule for free — see index.css and
+  // dictation-panel.css for the light-forcing exceptions this asymmetry buys.
+  assert.equal(resolvePillThemeClass("dark"), "dark");
+  assert.equal(resolvePillThemeClass("light"), "pill-theme-light");
+  // "auto" (the default) must not add a class: the pill just falls through to
+  // whatever `.dark` the app theme already put on <html>/<body>.
+  assert.equal(resolvePillThemeClass("auto"), undefined);
+});

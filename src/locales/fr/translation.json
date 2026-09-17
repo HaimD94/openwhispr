@@ -2157,6 +2157,9 @@
         "dark": "Sombre",
         "description": "Contrôlez l'apparence d'OpenWhispr",
         "light": "Clair",
+        "pillTheme": "Apparence de l'icône",
+        "pillThemeAuto": "Suivre le thème de l'appli",
+        "pillThemeDescription": "Choisissez si l'icône flottante est claire ou sombre, indépendamment du thème de l'application",
         "theme": "Thème",
         "themeDescription": "Choisissez clair, sombre ou suivre le système",
         "title": "Apparence"
