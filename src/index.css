@@ -199,9 +199,11 @@
    <html>/<body> — custom properties inherit down the DOM regardless of the
    forcing class sitting between them. Keep in sync with @theme's palette and
    with `.dark` above: any color either one adds or changes belongs here too.
-   `--shadow-card` has no light-mode value anywhere (light mode simply never
-   sets it, so var(--shadow-card) falls back to `none`) — resetting it here
-   reproduces that absence instead of leaking `.dark`'s value in. */
+   `--shadow-card` and `--shadow-modal` have no light-mode value anywhere
+   (light mode simply never sets them, so their var() falls back to `none`) —
+   resetting them here reproduces that absence instead of leaking `.dark`'s
+   value in. `--shadow-modal` matters for the live transcript panel, which
+   follows the pill's appearance too. */
 .pill-theme-light {
   --color-primary: #4577e9;
   --color-primary-foreground: #ffffff;
@@ -239,6 +241,7 @@
   --color-border-hover: #d4d4d4;
   --color-border-active: #4577e9;
   --shadow-card: initial;
+  --shadow-modal: initial;
 }
 
 @layer base {

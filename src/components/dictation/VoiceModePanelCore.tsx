@@ -17,6 +17,10 @@ interface VoiceModePanelCoreProps {
   label?: string;
   measurementRevision?: string | number | null;
   onClosingFadeComplete?: () => void;
+  /** Pill appearance override class (resolvePillThemeClass). The live
+   * transcript grows out of the pill, so it wears the pill's theme; the
+   * assistant panel keeps the app theme. */
+  pillThemeClassName?: string;
   onPreferredHeightChange: (
     height: number,
     measurementRevision?: string | number | null
@@ -38,6 +42,7 @@ export function VoiceModePanelCore({
   label,
   measurementRevision = null,
   onClosingFadeComplete,
+  pillThemeClassName,
   onPreferredHeightChange,
   children,
 }: VoiceModePanelCoreProps) {
@@ -81,7 +86,11 @@ export function VoiceModePanelCore({
     <ExpandingPanelShell
       open={open && mode !== null}
       anchor={anchor}
-      className={isLiveTranscript ? "live-transcript-panel" : undefined}
+      className={
+        isLiveTranscript
+          ? ["live-transcript-panel", pillThemeClassName].filter(Boolean).join(" ")
+          : undefined
+      }
       stabilizeHeight={isLiveTranscript && open}
       fillAvailableHeight={mode === "assistant"}
       preferredHeightCap={isLiveTranscript ? LIVE_TRANSCRIPT_SURFACE_LIMITS.maxHeight : undefined}

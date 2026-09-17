@@ -858,6 +858,7 @@ export default function App() {
         }
         onPreferredHeightChange={liveTranscript.requestHeight}
         onClosingFadeComplete={assistant.completeContentFade}
+        pillThemeClassName={pillThemeClass}
       >
         {activeVoicePanelMode === "assistant" && assistant.mounted && (
           <AssistantPanel
