@@ -166,3 +166,47 @@ test("a same-footprint request is still skipped when the window reports inflated
   await manager._performMainWindowResize("BASE");
   assert.equal(win.setBoundsCalls.length, 0);
 });
+
+test("grow-downward keeps the pill's screen position and returns exactly on BASE", async () => {
+  const start = { x: 14, y: 0, width: 208, height: 120 };
+  const { manager, win } = makeManager(start);
+
+  // In BASE at y=0, the pill's idle top is at screen y = 0 + 120 - 12 - 40 = 68.
+  await manager._performMainWindowResize("WITH_MENU");
+  const grown = win.commanded();
+
+  // The grown window sits at y = pillScreenTop - 12 = 56, with height 280.
+  // Drawn at the window's top dock (12px inset), the pill's top remains at screen y = 56 + 12 = 68.
+  assert.equal(grown.y, 56);
+  assert.equal(grown.y + 12, 68);
+  assert.equal(grown.width, 240);
+  assert.equal(grown.height, 280);
+
+  // Returning to BASE restores the exact pre-grow bounds without drift.
+  await manager._performMainWindowResize("BASE");
+  assert.deepEqual(win.commanded(), start);
+
+  // Cycling 5 times at the top leaves no drift.
+  for (let cycle = 1; cycle <= 5; cycle += 1) {
+    await manager._performMainWindowResize("WITH_MENU");
+    await manager._performMainWindowResize("BASE");
+    assert.deepEqual(win.commanded(), start, `drifted after top menu cycle ${cycle}`);
+  }
+});
+
+test("unchanged bottom-anchored grow when there is room above", async () => {
+  const start = { x: 14, y: 700, width: 208, height: 120 };
+  const { manager, win } = makeManager(start);
+
+  await manager._performMainWindowResize("WITH_MENU");
+  const grown = win.commanded();
+
+  // Grown upward anchored at bottom: newY = 700 + 120 - 280 = 540, bottom remains 820.
+  assert.equal(grown.y, 540);
+  assert.equal(grown.y + grown.height, 820);
+  assert.equal(grown.width, 240);
+  assert.equal(grown.height, 280);
+
+  await manager._performMainWindowResize("BASE");
+  assert.deepEqual(win.commanded(), start);
+});

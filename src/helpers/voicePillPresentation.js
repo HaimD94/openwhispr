@@ -155,6 +155,7 @@ export function resolveVoicePillDock({
   assistantOpen,
   panelStartPosition,
   horizontalDirection = resolveVoiceHorizontalDirection(panelStartPosition),
+  verticalOrientation = "bottom",
 }) {
   if (liveTranscriptOpen) {
     if (liveTranscriptEntrancePhase === "encapsulate") {
@@ -167,6 +168,10 @@ export function resolveVoicePillDock({
     return "live-transcript-bottom-left";
   }
   if (assistantOpen) return `assistant-bottom-${horizontalDirection}`;
+  if (verticalOrientation === "top") {
+    if (panelStartPosition === "center") return "top-center";
+    return `top-${horizontalDirection}`;
+  }
   if (panelStartPosition === "center") return "center";
   return `bottom-${horizontalDirection}`;
 }

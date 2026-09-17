@@ -9,6 +9,8 @@ interface PillCommandMenuProps {
   meetingAllowed: boolean;
   isHovered: boolean;
   anchor?: "left" | "right" | "center";
+  verticalAnchor?: "top" | "bottom";
+  topDocked?: boolean;
   setWindowInteractivity: (capture: boolean) => void;
   onToggleListening: () => void;
   onAskAssistant: () => void;
@@ -28,6 +30,8 @@ export function PillCommandMenu({
   meetingAllowed,
   isHovered,
   anchor = "right",
+  verticalAnchor = "bottom",
+  topDocked = false,
   setWindowInteractivity,
   onToggleListening,
   onAskAssistant,
@@ -63,11 +67,13 @@ export function PillCommandMenu({
   // the window geometry is physical and must not flip under an RTL UI.
   const horizontalAnchor =
     anchor === "left" ? "left-0" : anchor === "center" ? "left-1/2 -translate-x-1/2" : "right-0";
+  const isTop = verticalAnchor === "top" || topDocked;
+  const verticalPosition = isTop ? "top-full mt-3" : "bottom-full mb-3";
 
   return (
     <div
       ref={menuRef}
-      className={`absolute bottom-full ${horizontalAnchor} mb-3 w-48 rounded-lg border border-border bg-popover text-popover-foreground shadow-lg backdrop-blur-sm`}
+      className={`absolute ${verticalPosition} ${horizontalAnchor} w-48 rounded-lg border border-border bg-popover text-popover-foreground shadow-lg backdrop-blur-sm`}
       onMouseEnter={() => {
         setWindowInteractivity(true);
       }}

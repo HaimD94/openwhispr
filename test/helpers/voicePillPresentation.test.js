@@ -151,6 +151,40 @@ test("the idle pill keeps its configured resting dock", async () => {
   );
 });
 
+test("the idle pill resolves top docks when vertical orientation is top", async () => {
+  const { resolveVoicePillDock } = await load();
+
+  assert.equal(
+    resolveVoicePillDock({
+      liveTranscriptOpen: false,
+      assistantOpen: false,
+      panelStartPosition: "bottom-right",
+      horizontalDirection: "right",
+      verticalOrientation: "top",
+    }),
+    "top-right"
+  );
+  assert.equal(
+    resolveVoicePillDock({
+      liveTranscriptOpen: false,
+      assistantOpen: false,
+      panelStartPosition: "bottom-left",
+      horizontalDirection: "left",
+      verticalOrientation: "top",
+    }),
+    "top-left"
+  );
+  assert.equal(
+    resolveVoicePillDock({
+      liveTranscriptOpen: false,
+      assistantOpen: false,
+      panelStartPosition: "center",
+      verticalOrientation: "top",
+    }),
+    "top-center"
+  );
+});
+
 test("Live Transcript restores stop and cancel interactions without unlocking Assistant", async () => {
   const { resolveVoicePillInteraction } = await load();
 
