@@ -877,27 +877,47 @@ class WindowManager {
         this._panelStartPosition
       );
     }
+    const bottomAnchoredY = currentBounds.y + currentBounds.height - newSize.height;
+    const workArea = display.workArea || display.bounds;
+    const workAreaTop = workArea?.y ?? 0;
+    const growDownward = sizeKey === "WITH_MENU" && bottomAnchoredY < workAreaTop;
+
+    const horizontalDirection =
+      this._activeHorizontalDirection || this.getMainWindowHorizontalDirection();
     const position =
       this._panelStartPosition === "center"
-        ? "center"
-        : `bottom-${this._activeHorizontalDirection || this.getMainWindowHorizontalDirection()}`;
+        ? growDownward
+          ? "top-center"
+          : "center"
+        : `${growDownward ? "top" : "bottom"}-${horizontalDirection}`;
 
-    let newX, newY;
-
-    if (position === "bottom-left") {
-      // Anchor bottom-left corner: keep x, expand rightward and upward
-      newX = currentBounds.x;
-      newY = currentBounds.y + currentBounds.height - newSize.height;
-    } else if (position === "center") {
-      // Anchor bottom-center: expand symmetrically and upward
+    let newX;
+    if (this._panelStartPosition === "center") {
+      // Anchor center: expand symmetrically
       const centerX = currentBounds.x + currentBounds.width / 2;
       newX = centerX - newSize.width / 2;
-      newY = currentBounds.y + currentBounds.height - newSize.height;
+    } else if (horizontalDirection === "left") {
+      // Anchor left corner: keep x, expand rightward
+      newX = currentBounds.x;
     } else {
-      // bottom-right (default): anchor bottom-right corner, expand leftward and upward
+      // Anchor right corner (default): expand leftward
       const bottomRightX = currentBounds.x + currentBounds.width;
       newX = bottomRightX - newSize.width;
-      newY = currentBounds.y + currentBounds.height - newSize.height;
+    }
+
+    let newY;
+    if (growDownward) {
+      // When there is not enough room above the pill for the grown window, grow
+      // downward instead. The pill in BASE is docked 12px from the window's
+      // bottom edge with an idle height of 40px (VOICE_PILL_FOOTPRINT.idle).
+      // Its screen-space top is:
+      //   currentBounds.y + currentBounds.height - 12 - 40
+      // To keep the pill exactly where it is on screen when drawn at the top
+      // dock (12px inset from the window's top edge), place the grown window at:
+      //   pillScreenTop - 12 = currentBounds.y + currentBounds.height - 64
+      newY = currentBounds.y + currentBounds.height - 64;
+    } else {
+      newY = bottomAnchoredY;
     }
 
     const clamped = WindowPositionUtil.clampToWorkArea({ x: newX, y: newY, ...newSize }, display);

@@ -95,3 +95,28 @@ test("the command menu opens toward the side its window grows into", async (t) =
   assert.doesNotMatch(centerMarkup, /\bright-0\b/);
 });
 
+test("the command menu renders below the pill when told it is top-docked", async (t) => {
+  const topMarkup = await renderMenu(t, { verticalAnchor: "top" });
+  assert.match(topMarkup, /\btop-full\b/);
+  assert.match(topMarkup, /\bmt-3\b/);
+  assert.doesNotMatch(topMarkup, /\bbottom-full\b/);
+  assert.doesNotMatch(topMarkup, /\bmb-3\b/);
+
+  const topDockedFlagMarkup = await renderMenu(t, { topDocked: true });
+  assert.match(topDockedFlagMarkup, /\btop-full\b/);
+  assert.match(topDockedFlagMarkup, /\bmt-3\b/);
+  assert.doesNotMatch(topDockedFlagMarkup, /\bbottom-full\b/);
+  assert.doesNotMatch(topDockedFlagMarkup, /\bmb-3\b/);
+
+  const bottomMarkup = await renderMenu(t, { verticalAnchor: "bottom" });
+  assert.match(bottomMarkup, /\bbottom-full\b/);
+  assert.match(bottomMarkup, /\bmb-3\b/);
+  assert.doesNotMatch(bottomMarkup, /\btop-full\b/);
+  assert.doesNotMatch(bottomMarkup, /\bmt-3\b/);
+
+  const defaultMarkup = await renderMenu(t, {});
+  assert.match(defaultMarkup, /\bbottom-full\b/);
+  assert.match(defaultMarkup, /\bmb-3\b/);
+  assert.doesNotMatch(defaultMarkup, /\btop-full\b/);
+  assert.doesNotMatch(defaultMarkup, /\bmt-3\b/);
+});

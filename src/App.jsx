@@ -153,6 +153,7 @@ export default function App() {
     resolveVoiceHorizontalDirection(panelStartPosition)
   );
   const [mainWindowHorizontalDirection, setMainWindowHorizontalDirection] = useState(null);
+  const [mainWindowVerticalOrientation, setMainWindowVerticalOrientation] = useState("bottom");
 
   const setWindowInteractivity = React.useCallback((shouldCapture) => {
     // Linux has one pointer-poll owner; native mouseleave must not undo its
@@ -183,6 +184,21 @@ export default function App() {
     initialDirection?.then(applyDirection).catch(() => {});
     return () => {
       disposed = true;
+      unsubscribe?.();
+    };
+  }, []);
+
+  useEffect(() => {
+    const unsubscribe = window.electronAPI?.onMainWindowWillResize?.((resize) => {
+      if (resize?.anchor === "none") {
+        setMainWindowVerticalOrientation("bottom");
+        return;
+      }
+      if (!resize?.anchor) return;
+      const isTop = resize.anchor.startsWith("top");
+      setMainWindowVerticalOrientation(isTop ? "top" : "bottom");
+    });
+    return () => {
       unsubscribe?.();
     };
   }, []);
@@ -687,6 +703,7 @@ export default function App() {
     assistantOpen: assistant.open,
     panelStartPosition,
     horizontalDirection: voiceHorizontalDirection,
+    verticalOrientation: mainWindowVerticalOrientation,
   });
   const voicePillPopoverAlign =
     panelStartPosition === "center" ? "center" : voiceHorizontalDirection;
@@ -905,7 +922,12 @@ export default function App() {
               agentAllowed={agentAllowed}
               meetingAllowed={meetingAllowed}
               isHovered={isHovered}
-              anchor={voicePillDock === "center" ? "center" : voiceHorizontalDirection}
+              anchor={
+                voicePillDock === "center" || voicePillDock === "top-center"
+                  ? "center"
+                  : voiceHorizontalDirection
+              }
+              verticalAnchor={mainWindowVerticalOrientation}
               setWindowInteractivity={setWindowInteractivity}
               onToggleListening={() => {
                 setIsCommandMenuOpen(false);
