@@ -197,6 +197,16 @@ function fakeWindow({ visible }) {
       getBounds: () => ({ x: 0, y: 0, width: 96, height: 96 }),
       on: (event, listener) => listeners.set(event, listener),
       once: (event, listener) => listeners.set(event, listener),
+      removeListener: (event, listener) => {
+        if (!listener || listeners.get(event) === listener) {
+          listeners.delete(event);
+        }
+      },
+      off: (event, listener) => {
+        if (!listener || listeners.get(event) === listener) {
+          listeners.delete(event);
+        }
+      },
       webContents: {
         isDestroyed: () => false,
         send: (channel, payload) => sent.push({ channel, payload }),
@@ -965,4 +975,74 @@ test("entering onboarding hides an already-visible companion pill", () => {
   manager.setOnboardingActive(true);
 
   assert.equal(pill.isVisible(), false);
+});
+
+test("on win32 the first region report primes mouse activation with focus and blur; second report is no-op", (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  withPlatform("win32", () => {
+    const { manager, calls, listeners } = makeManager({ visible: true });
+    manager.setPillHitRegion({ x: 0, y: 0, width: 96, height: 96 });
+
+    assert.deepEqual(calls, ["focusable:true", "focus"]);
+
+    const onFocus = listeners.get("focus");
+    assert.ok(typeof onFocus === "function", "focus listener must be registered");
+    onFocus();
+
+    // Released a moment after the focus event, not inside it.
+    assert.deepEqual(calls, ["focusable:true", "focus"]);
+    t.mock.timers.tick(120);
+    assert.deepEqual(calls, ["focusable:true", "focus", "blur", "focusable:false"]);
+
+    // A second region report does nothing
+    manager.setPillHitRegion({ x: 0, y: 0, width: 96, height: 96 });
+    assert.deepEqual(calls, ["focusable:true", "focus", "blur", "focusable:false"]);
+  });
+});
+
+test("on darwin reporting pill hit region does not prime mouse activation", () => {
+  withPlatform("darwin", () => {
+    const { manager, calls } = makeManager({ visible: true });
+    manager.setPillHitRegion({ x: 0, y: 0, width: 96, height: 96 });
+    assert.deepEqual(calls, []);
+  });
+});
+
+test("if the command menu opens before the sequence finishes, blur/setFocusable(false) are not called by the priming", () => {
+  withPlatform("win32", () => {
+    const { manager, calls, listeners } = makeManager({ visible: true });
+    manager.setPillHitRegion({ x: 0, y: 0, width: 96, height: 96 });
+
+    assert.deepEqual(calls, ["focusable:true", "focus"]);
+    calls.length = 0;
+
+    manager.setCommandMenuOpen(true);
+    assert.deepEqual(calls, ["focusable:true", "focus"]);
+    calls.length = 0;
+
+    const onFocus = listeners.get("focus");
+    assert.ok(typeof onFocus === "function");
+    onFocus();
+
+    assert.deepEqual(calls, []);
+  });
+});
+
+test("the timeout path finishes the sequence when no focus event arrives", (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  try {
+    withPlatform("win32", () => {
+      const { manager, calls } = makeManager({ visible: true });
+      manager.setPillHitRegion({ x: 0, y: 0, width: 96, height: 96 });
+
+      assert.deepEqual(calls, ["focusable:true", "focus"]);
+      calls.length = 0;
+
+      t.mock.timers.tick(400);
+
+      assert.deepEqual(calls, ["blur", "focusable:false"]);
+    });
+  } finally {
+    t.mock.timers.reset();
+  }
 });
