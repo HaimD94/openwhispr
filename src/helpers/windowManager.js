@@ -116,11 +116,6 @@ class WindowManager {
     this._pillHitRegion = null;
     this._pillHitRegionReported = false;
     this._firstRendererRegionLogged = false; // TEMPORARY diagnostics (first-click bug)
-    this._pillMouseActivationPrimed = false;
-    this._pillMouseActivationInProgress = false;
-    this._pillMouseActivationMenuTookOwnership = false;
-    this._pillMouseActivationTimer = null;
-    this._pillMouseActivationFocusListener = null;
     // Which entry of the size ladder the window is currently showing. The pill
     // hit-test needs to know "is this the pill or a real surface", and this is
     // the only answer that cannot be wrong -- see _computePillHitRect.
@@ -229,8 +224,6 @@ class WindowManager {
     }
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
       if (this._assistantPanelOpen) {
-        this._pillMouseActivationPrimed = true;
-        this._pillMouseActivationMenuTookOwnership = true;
         // The window may have been hidden while the command was in flight
         // (PTT tap, auto-hide, tray); focus() is a no-op on a hidden window.
         if (!this.mainWindow.isVisible()) this.mainWindow.showInactive();
@@ -291,8 +284,6 @@ class WindowManager {
     }
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
       if (this._commandMenuOpen) {
-        this._pillMouseActivationPrimed = true;
-        this._pillMouseActivationMenuTookOwnership = true;
         if (!this.mainWindow.isVisible()) this.mainWindow.showInactive();
         this.mainWindow.setFocusable(true);
         this.mainWindow.focus();
@@ -386,8 +377,6 @@ class WindowManager {
       this._firstRendererRegionLogged = true;
       debugLogger?.debug?.("First renderer pill hit region arrived", { region }, "pill-click");
     }
-    this._primePillMouseActivation();
-
     // A report having arrived at all is the useful signal: from here on, "no
     // region" means the pill is hidden and nothing should capture, rather than
     // "the renderer has not spoken yet" -- which is the only case the guessed
@@ -403,85 +392,6 @@ class WindowManager {
       width > 0 &&
       height > 0;
     this._pillHitRegion = valid ? { x, y, width, height } : null;
-  }
-
-  // On Windows, the pill window is created focusable: false and never activated.
-  // One real activation is what makes Windows deliver mouse presses to this
-  // never-activated, non-focusable window (measured: first presses were swallowed
-  // until the first right-click focused the window). We prime it once early in the
-  // session so the user's first click works.
-  _primePillMouseActivation() {
-    if (process.platform !== "win32") return;
-    if (this._pillMouseActivationPrimed) return;
-    if (!this.mainWindow || this.mainWindow.isDestroyed() || !this.mainWindow.isVisible()) {
-      return;
-    }
-    if (this._commandMenuOpen || this._assistantPanelOpen) {
-      this._pillMouseActivationPrimed = true;
-      return;
-    }
-
-    this._pillMouseActivationPrimed = true;
-    this._pillMouseActivationInProgress = true;
-    const startTime = Date.now();
-
-    this.mainWindow.setFocusable(true);
-    this.mainWindow.focus();
-
-    const finish = (focusEventReceived) => {
-      if (!this._pillMouseActivationInProgress) return;
-      this._cleanupPillMouseActivation();
-
-      const waitedMs = Date.now() - startTime;
-      // TEMPORARY diagnostics (first-click bug)
-      debugLogger?.debug?.(
-        "Pill mouse activation primed",
-        { focusEventReceived, waitedMs },
-        "pill-click"
-      );
-
-      if (
-        !this._pillMouseActivationMenuTookOwnership &&
-        !this._commandMenuOpen &&
-        !this._assistantPanelOpen
-      ) {
-        if (this.mainWindow && !this.mainWindow.isDestroyed()) {
-          if (this.mainWindow.isFocused?.()) {
-            this.mainWindow.blur();
-          }
-          this.mainWindow.setFocusable(false);
-        }
-      }
-    };
-
-    // Stay active briefly after the focus event instead of blurring inside it:
-    // the unlock we measured came from a window that stayed focused for a while,
-    // and an immediate blur could undo the activation before Chromium settles it.
-    const onFocus = () => {
-      clearTimeout(this._pillMouseActivationTimer);
-      this._pillMouseActivationTimer = setTimeout(() => finish(true), 120);
-    };
-    this._pillMouseActivationFocusListener = onFocus;
-    this.mainWindow.once("focus", onFocus);
-
-    this._pillMouseActivationTimer = setTimeout(() => {
-      finish(false);
-    }, 400);
-  }
-
-  _cleanupPillMouseActivation() {
-    this._pillMouseActivationInProgress = false;
-    if (this._pillMouseActivationTimer) {
-      clearTimeout(this._pillMouseActivationTimer);
-      this._pillMouseActivationTimer = null;
-    }
-    if (this._pillMouseActivationFocusListener) {
-      if (this.mainWindow && !this.mainWindow.isDestroyed()) {
-        this.mainWindow.removeListener?.("focus", this._pillMouseActivationFocusListener);
-        this.mainWindow.off?.("focus", this._pillMouseActivationFocusListener);
-      }
-      this._pillMouseActivationFocusListener = null;
-    }
   }
 
   _computePillHitRect() {
@@ -566,11 +476,6 @@ class WindowManager {
     if (process.platform !== "win32") return;
     if (!this.mainWindow || this.mainWindow.isDestroyed()) return;
     if (!this.mainWindow.isVisible()) return;
-
-    // The renderer can report its first hit region a few ms before the window is
-    // shown (measured on the user's machine), when priming must skip; the first
-    // visible poll after that report is the retry. A no-op once primed.
-    if (this._pillHitRegionReported) this._primePillMouseActivation();
 
     // Never re-hit-test mid-drag. The window is chasing the cursor, so the
     // cursor can fall outside the pill rect for a frame; going click-through
@@ -2544,7 +2449,6 @@ class WindowManager {
     this.mainWindow.on("move", () => this.positionAgentDictationPill());
 
     this.mainWindow.on("closed", () => {
-      this._cleanupPillMouseActivation();
       this.stopPillHitTesting();
       this.dragManager.cleanup();
       const pillWindow = this.agentDictationPillWindow;
