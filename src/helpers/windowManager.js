@@ -37,6 +37,7 @@ const {
   fitDictationErrorWindowToWorkArea,
   resolveHorizontalWindowDirection,
   WINDOW_SIZES,
+  PILL_TOP_OVERHANG_PX,
   WindowPositionUtil,
 } = require("./windowConfig");
 const AGENT_DICTATION_PILL_SIZE = Object.freeze({ ...WINDOW_SIZES.BASE });
@@ -110,6 +111,7 @@ class WindowManager {
     this._floatingIconAutoHide = false;
     this._panelStartPosition = "bottom-right";
     this._activeHorizontalDirection = null;
+    this._activeVerticalDirection = null;
     // Reported by the renderer (see setPillHitRegion): the real on-screen box of
     // the pill and its siblings, in CSS px relative to the window's content.
     // Null until the first report, and again whenever the pill is hidden.
@@ -755,6 +757,7 @@ class WindowManager {
     ) {
       this._baseBoundsBeforeResize = null;
       this._activeHorizontalDirection = null;
+      this._activeVerticalDirection = null;
     }
 
     // Returning to BASE restores the exact pre-grow bounds. Anchoring the
@@ -767,13 +770,18 @@ class WindowManager {
       // cannot come back off-screen.
       const restored = {
         ...this._baseBoundsBeforeResize,
-        ...WindowPositionUtil.clampToWorkArea(this._baseBoundsBeforeResize, display),
+        ...WindowPositionUtil.clampToWorkArea(this._baseBoundsBeforeResize, display, {
+          maxTopOverhang: PILL_TOP_OVERHANG_PX,
+        }),
       };
+      const isTop =
+        this._baseBoundsBeforeResize.y < (display.workArea?.y ?? display.bounds?.y ?? 0);
       const restoreAnchor =
         this._panelStartPosition === "center"
-          ? "center"
-          : `bottom-${this._activeHorizontalDirection || this.getMainWindowHorizontalDirection()}`;
+          ? (isTop ? "top-center" : "center")
+          : `${isTop ? "top" : "bottom"}-${this._activeHorizontalDirection || this.getMainWindowHorizontalDirection()}`;
       this._baseBoundsBeforeResize = null;
+      this._activeVerticalDirection = null;
       if (
         restored.x === currentBounds.x &&
         restored.y === currentBounds.y &&
@@ -784,7 +792,9 @@ class WindowManager {
         // handshake and setBounds so the restore cannot perturb the renderer.
         this._lastResizeBounds = restored;
         this._activeHorizontalDirection = null;
+        this._activeVerticalDirection = null;
         this._notifyMainWindowHorizontalDirection();
+        this._notifyMainWindowVerticalDirection();
         return { success: true, bounds: restored, changed: false };
       }
       const restoreMask = await this._prepareRendererForMainWindowResize(restored, restoreAnchor);
@@ -802,7 +812,9 @@ class WindowManager {
         restoreMask
       );
       this._activeHorizontalDirection = null;
+      this._activeVerticalDirection = null;
       this._notifyMainWindowHorizontalDirection();
+      this._notifyMainWindowVerticalDirection();
       return { success: true, bounds: restored, changed: true };
     }
 
@@ -827,27 +839,59 @@ class WindowManager {
         this._panelStartPosition
       );
     }
-    const position =
-      this._panelStartPosition === "center"
+
+    const workArea = display.workArea || display.bounds;
+    const baseBounds = this._baseBoundsBeforeResize || currentBounds;
+    const isOverhangingTop = baseBounds.y < (workArea?.y ?? 0);
+    this._activeVerticalDirection = isOverhangingTop ? "top" : "bottom";
+
+    // When the pill-sized window overhangs the top edge, growing WITH_MENU
+    // anchors the pill to the top of the grown window and expands downward
+    // instead of upward into dead space above the work area. Other surfaces
+    // pull the window down into the work area before expanding upward as today.
+    const isTopGrow = isOverhangingTop && sizeKey === "WITH_MENU";
+    const horizontalDir =
+      this._activeHorizontalDirection || this.getMainWindowHorizontalDirection();
+    const position = isTopGrow
+      ? this._panelStartPosition === "center"
+        ? "top-center"
+        : `top-${horizontalDir}`
+      : this._panelStartPosition === "center"
         ? "center"
-        : `bottom-${this._activeHorizontalDirection || this.getMainWindowHorizontalDirection()}`;
+        : `bottom-${horizontalDir}`;
 
     let newX, newY;
 
-    if (position === "bottom-left") {
-      // Anchor bottom-left corner: keep x, expand rightward and upward
-      newX = currentBounds.x;
-      newY = currentBounds.y + currentBounds.height - newSize.height;
-    } else if (position === "center") {
-      // Anchor bottom-center: expand symmetrically and upward
-      const centerX = currentBounds.x + currentBounds.width / 2;
-      newX = centerX - newSize.width / 2;
-      newY = currentBounds.y + currentBounds.height - newSize.height;
+    if (isTopGrow) {
+      if (position === "top-left") {
+        newX = currentBounds.x;
+        newY = currentBounds.y + PILL_TOP_OVERHANG_PX;
+      } else if (position === "top-center") {
+        const centerX = currentBounds.x + currentBounds.width / 2;
+        newX = centerX - newSize.width / 2;
+        newY = currentBounds.y + PILL_TOP_OVERHANG_PX;
+      } else {
+        // top-right
+        const bottomRightX = currentBounds.x + currentBounds.width;
+        newX = bottomRightX - newSize.width;
+        newY = currentBounds.y + PILL_TOP_OVERHANG_PX;
+      }
     } else {
-      // bottom-right (default): anchor bottom-right corner, expand leftward and upward
-      const bottomRightX = currentBounds.x + currentBounds.width;
-      newX = bottomRightX - newSize.width;
-      newY = currentBounds.y + currentBounds.height - newSize.height;
+      if (position === "bottom-left") {
+        // Anchor bottom-left corner: keep x, expand rightward and upward
+        newX = currentBounds.x;
+        newY = currentBounds.y + currentBounds.height - newSize.height;
+      } else if (position === "center") {
+        // Anchor bottom-center: expand symmetrically and upward
+        const centerX = currentBounds.x + currentBounds.width / 2;
+        newX = centerX - newSize.width / 2;
+        newY = currentBounds.y + currentBounds.height - newSize.height;
+      } else {
+        // bottom-right (default): anchor bottom-right corner, expand leftward and upward
+        const bottomRightX = currentBounds.x + currentBounds.width;
+        newX = bottomRightX - newSize.width;
+        newY = currentBounds.y + currentBounds.height - newSize.height;
+      }
     }
 
     const clamped = WindowPositionUtil.clampToWorkArea({ x: newX, y: newY, ...newSize }, display);
@@ -865,7 +909,9 @@ class WindowManager {
       this._lastResizeBounds = { ...currentBounds };
       if (sizeKey === "BASE") {
         this._activeHorizontalDirection = null;
+        this._activeVerticalDirection = null;
         this._notifyMainWindowHorizontalDirection();
+        this._notifyMainWindowVerticalDirection();
       }
       return { success: true, bounds: currentBounds, changed: false };
     }
@@ -879,7 +925,11 @@ class WindowManager {
     this._lastResizeBounds = newBounds;
     if (sizeKey === "BASE") {
       this._activeHorizontalDirection = null;
+      this._activeVerticalDirection = null;
       this._notifyMainWindowHorizontalDirection();
+      this._notifyMainWindowVerticalDirection();
+    } else {
+      this._notifyMainWindowVerticalDirection();
     }
 
     return { success: true, bounds: newBounds, changed: true };

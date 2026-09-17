@@ -138,17 +138,21 @@ class DragManager {
       if (this.dragGeometry && typeof this.dragGeometry.getAnchor === "function") {
         anchor = this.dragGeometry.getAnchor();
         let deltaX = 0;
-        if (anchor === "right" || anchor === "bottom-right") {
+        if (anchor === "right" || anchor === "bottom-right" || anchor === "top-right") {
           deltaX = deltaWidth;
-        } else if (anchor === "center") {
+        } else if (anchor === "center" || anchor === "top-center") {
           deltaX = deltaWidth / 2;
         } else {
-          // "left", "bottom-left", or other: offset.x unchanged
+          // "left", "bottom-left", "top-left", or other: offset.x unchanged
           deltaX = 0;
         }
+        const deltaY =
+          anchor === "top" || (typeof anchor === "string" && anchor.startsWith("top-"))
+            ? 0
+            : deltaHeight;
         this.dragOffset = {
           x: this.dragOffset.x + deltaX,
-          y: this.dragOffset.y + deltaHeight,
+          y: this.dragOffset.y + deltaY,
         };
       } else {
         // Without a known dock anchor, keep the grip on the same spot of the
@@ -361,7 +365,15 @@ class DragManager {
         x: x + width / 2,
         y: y + height / 2,
       });
-      const clamped = WindowPositionUtil.clampToWorkArea({ x, y, width, height }, display);
+      const maxTopOverhang =
+        this.dragGeometry && typeof this.dragGeometry.getMaxTopOverhang === "function"
+          ? this.dragGeometry.getMaxTopOverhang()
+          : 0;
+      const clamped = WindowPositionUtil.clampToWorkArea(
+        { x, y, width, height },
+        display,
+        { maxTopOverhang }
+      );
 
       // setBounds with the locked size, never setPosition: see the note at the
       // top of the file. The size has to travel with every single move, or

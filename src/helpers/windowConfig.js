@@ -136,6 +136,12 @@ function fitDictationErrorWindowToWorkArea(requestedSize, workArea) {
 // contract, and the only place they are defined.
 const PILL_WINDOW_SIZE = { width: 208, height: 120 };
 
+// At the bottom of the screen the pill is docked 12px above the window's bottom
+// edge. In a 120px window with a 40px idle pill, that leaves 68px of headroom
+// above the pill. When docked against the screen's TOP edge with the same 12px
+// inset, the pill-sized window overhangs the work area by 68 - 12 = 56 DIP.
+const PILL_TOP_OVERHANG_PX = 56;
+
 const WINDOW_SIZES = {
   // BASE and RECORDING are deliberately the same box. Resizing a transparent
   // always-on-top window paints one compositor frame of the stale texture
@@ -317,11 +323,14 @@ class WindowPositionUtil {
   // Keeps a window's whole frame inside one display's work area. Displays of
   // different sizes leave dead space beside the smaller one, and a window parked
   // there is invisible even though the window server still reports it on screen.
-  static clampToWorkArea(bounds, display) {
+  // Pill drags can optionally allow a bounded top overhang so the bottom-docked
+  // pill reaches the work area's top edge with the established 12 DIP inset.
+  static clampToWorkArea(bounds, display, { maxTopOverhang = 0 } = {}) {
     const workArea = display.workArea || display.bounds;
+    const minY = workArea.y - Math.max(0, maxTopOverhang);
     return {
       x: Math.max(workArea.x, Math.min(bounds.x, workArea.x + workArea.width - bounds.width)),
-      y: Math.max(workArea.y, Math.min(bounds.y, workArea.y + workArea.height - bounds.height)),
+      y: Math.max(minY, Math.min(bounds.y, workArea.y + workArea.height - bounds.height)),
     };
   }
 
@@ -388,6 +397,7 @@ module.exports = {
   fitDictationErrorWindowToWorkArea,
   resolveHorizontalWindowDirection,
   WINDOW_SIZES,
+  PILL_TOP_OVERHANG_PX,
   WindowPositionUtil,
   resolveOverlayWindowType,
 };
