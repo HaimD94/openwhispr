@@ -28,6 +28,7 @@ import { PillTooltip } from "./components/dictation/PillTooltip";
 import { PillCommandMenu } from "./components/dictation/PillCommandMenu";
 import { LiquidCancelButton } from "./components/dictation/LiquidCancelButton";
 import { createMainWindowResizeCoordinator } from "./utils/mainWindowResizeCoordinator";
+import { installSwallowedPressClickRecovery } from "./utils/swallowedPressClickRecovery";
 import logger from "./utils/logger"; // TEMPORARY diagnostics (first-click bug)
 import {
   ASSISTANT_FOOTER_TRANSITION_TIMING,
@@ -64,6 +65,8 @@ const UNMOUNTED_RESIZE = {
 
 // TEMPORARY diagnostics (first-click bug)
 let windowCaptureEventCount = 0;
+
+/** Short "div#id.class[data-x]" label for a node, for the debug log. */
 const describeTarget = (el) => {
   if (!el) return "none";
   const node = el.nodeType === 3 ? el.parentElement : el;
@@ -130,6 +133,25 @@ export default function App() {
 
     return detach;
   }, []);
+
+  // Windows discards the press on this window whenever it is not the active
+  // window (it is focusable:false by design), and a press the page never sees
+  // is a click the page never fires. The release does arrive, so the recovery
+  // turns a lone mouseup back into the click -- see swallowedPressClickRecovery
+  // for the measurement this rests on.
+  useEffect(
+    () =>
+      installSwallowedPressClickRecovery({
+        onRecovered: ({ target, retargeted }) => {
+          logger.debug(
+            "Recovered a click Windows swallowed",
+            { target: describeTarget(target), retargeted },
+            "pill-click"
+          );
+        },
+      }),
+    []
+  );
   const [isHovered, setIsHovered] = useState(false);
   const [isCommandMenuOpen, setIsCommandMenuOpen] = useState(false);
   const buttonRef = useRef(null);
