@@ -28,6 +28,7 @@ import { PillTooltip } from "./components/dictation/PillTooltip";
 import { PillCommandMenu } from "./components/dictation/PillCommandMenu";
 import { LiquidCancelButton } from "./components/dictation/LiquidCancelButton";
 import { createMainWindowResizeCoordinator } from "./utils/mainWindowResizeCoordinator";
+import logger from "./utils/logger"; // TEMPORARY diagnostics (first-click bug)
 import {
   ASSISTANT_FOOTER_TRANSITION_TIMING,
   LIVE_TRANSCRIPT_ENTRANCE_TIMING,
@@ -61,7 +62,74 @@ const UNMOUNTED_RESIZE = {
   message: "Resize coordinator not mounted",
 };
 
+// TEMPORARY diagnostics (first-click bug)
+let windowCaptureEventCount = 0;
+const describeTarget = (el) => {
+  if (!el) return "none";
+  const node = el.nodeType === 3 ? el.parentElement : el;
+  if (!node || !node.tagName) return String(node);
+  const tag = node.tagName.toLowerCase();
+  const id = node.id ? `#${node.id}` : "";
+  let className = "";
+  if (typeof node.className === "string" && node.className.trim()) {
+    className = `.${node.className.trim().split(/\s+/).slice(0, 3).join(".")}`;
+  } else if (node.classList && typeof node.classList.values === "function") {
+    className = `.${Array.from(node.classList).slice(0, 3).join(".")}`;
+  }
+  let dataAttrs = "";
+  if (node.attributes) {
+    try {
+      dataAttrs = Array.from(node.attributes)
+        .filter((a) => a && a.name && a.name.startsWith("data-"))
+        .slice(0, 2)
+        .map((a) => `[${a.name}${a.value ? `="${a.value}"` : ""}]`)
+        .join("");
+    } catch {}
+  }
+  return `${tag}${id}${className}${dataAttrs}`;
+};
+
 export default function App() {
+  // TEMPORARY diagnostics (first-click bug)
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.addEventListener) return;
+    const events = ["pointerdown", "mousedown", "mouseup", "click"];
+    const handleCapture = (e) => {
+      if (windowCaptureEventCount >= 10) return;
+      windowCaptureEventCount += 1;
+      logger.debug(
+        "Window capture event",
+        {
+          type: e.type,
+          button: e.button,
+          target: describeTarget(e.target),
+          timeStamp: e.timeStamp,
+          hasFocus:
+            typeof document !== "undefined" && typeof document.hasFocus === "function"
+              ? document.hasFocus()
+              : false,
+        },
+        "pill-click"
+      );
+      if (windowCaptureEventCount >= 10) {
+        detach();
+      }
+    };
+
+    const detach = () => {
+      for (const evt of events) {
+        window.removeEventListener(evt, handleCapture, true);
+      }
+    };
+
+    if (windowCaptureEventCount < 10) {
+      for (const evt of events) {
+        window.addEventListener(evt, handleCapture, true);
+      }
+    }
+
+    return detach;
+  }, []);
   const [isHovered, setIsHovered] = useState(false);
   const [isCommandMenuOpen, setIsCommandMenuOpen] = useState(false);
   const buttonRef = useRef(null);
@@ -738,10 +806,22 @@ export default function App() {
                         : micTooltip
                 }
                 onPointerDown={(e) => {
+                  // TEMPORARY diagnostics (first-click bug)
+                  logger.debug(
+                    "Pill onPointerDown",
+                    { anyPanelMounted, pillVisuallySuppressed, hasDragged, button: e.button },
+                    "pill-click"
+                  );
                   if (anyPanelMounted) return;
                   handlePointerDown(e);
                 }}
                 onMouseDown={(e) => {
+                  // TEMPORARY diagnostics (first-click bug)
+                  logger.debug(
+                    "Pill onMouseDown",
+                    { anyPanelMounted, pillVisuallySuppressed, hasDragged, button: e.button },
+                    "pill-click"
+                  );
                   if (anyPanelMounted) {
                     setHasDragged(false);
                     return;
@@ -770,6 +850,12 @@ export default function App() {
                   setDragStartPos(null);
                 }}
                 onClick={(e) => {
+                  // TEMPORARY diagnostics (first-click bug)
+                  logger.debug(
+                    "Pill onClick",
+                    { anyPanelMounted, pillVisuallySuppressed, hasDragged, button: e.button },
+                    "pill-click"
+                  );
                   e.preventDefault();
                   // The pointer stays over the pill for the whole drag, so the
                   // release fires a click too. hasDragged already distinguishes
