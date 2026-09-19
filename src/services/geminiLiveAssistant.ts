@@ -14,9 +14,28 @@ export const LIVE_OUTPUT_SAMPLE_RATE = 24000;
 const WS_URL =
   "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent";
 
-const SYSTEM_INSTRUCTION =
-  "You are a voice assistant inside a desktop dictation app. Answer in the language the user " +
-  "speaks. Keep answers short and conversational, since they are read aloud.";
+const BASE_INSTRUCTION =
+  "You are a voice assistant inside a desktop dictation app. Keep answers short and " +
+  "conversational, since they are read aloud.";
+
+// Without a language the model guesses from the first sounds and can land on a
+// neighbouring language (Hebrew heard as Spanish), so the user's chosen language
+// is stated outright. "auto" (no code) keeps the guess-and-follow behaviour.
+export function buildSystemInstruction(language?: string): string {
+  if (!language) {
+    return `${BASE_INSTRUCTION} Answer in the language the user speaks.`;
+  }
+  let name = language;
+  try {
+    name = new Intl.DisplayNames(["en"], { type: "language" }).of(language) || language;
+  } catch {
+    // An unknown code is still passed through as written.
+  }
+  return (
+    `${BASE_INSTRUCTION} The user speaks ${name} (${language}). Always listen for ${name} and ` +
+    `answer in ${name}, unless the user clearly switches to another language.`
+  );
+}
 
 export type LiveServerEvent =
   | { type: "ready" }
@@ -117,12 +136,12 @@ export class LiveTurnCollector {
   }
 }
 
-export function buildLiveSetupMessage(model: string = LIVE_ASSISTANT_MODEL) {
+export function buildLiveSetupMessage(model: string = LIVE_ASSISTANT_MODEL, language?: string) {
   return {
     setup: {
       model: `models/${model.replace(/^models\//, "")}`,
       generationConfig: { responseModalities: ["AUDIO"] },
-      systemInstruction: { parts: [{ text: SYSTEM_INSTRUCTION }] },
+      systemInstruction: { parts: [{ text: buildSystemInstruction(language) }] },
       inputAudioTranscription: {},
       outputAudioTranscription: {},
     },
@@ -144,7 +163,7 @@ export class GeminiLiveAssistantSession {
     return this.ready;
   }
 
-  connect(apiKey: string, model: string = LIVE_ASSISTANT_MODEL): Promise<void> {
+  connect(apiKey: string, model: string = LIVE_ASSISTANT_MODEL, language?: string): Promise<void> {
     return new Promise((resolve, reject) => {
       const ws = new WebSocket(`${WS_URL}?key=${encodeURIComponent(apiKey)}`);
       this.ws = ws;
@@ -156,7 +175,7 @@ export class GeminiLiveAssistantSession {
         reject(error);
       };
 
-      ws.onopen = () => ws.send(JSON.stringify(buildLiveSetupMessage(model)));
+      ws.onopen = () => ws.send(JSON.stringify(buildLiveSetupMessage(model, language)));
 
       ws.onmessage = async (message) => {
         // The browser delivers server frames as Blobs; the payload is JSON text.

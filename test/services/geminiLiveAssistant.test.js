@@ -123,3 +123,25 @@ test("buildLiveSetupMessage asks for audio with both transcripts, never text", a
   assert.deepEqual(setup.inputAudioTranscription, {});
   assert.deepEqual(setup.outputAudioTranscription, {});
 });
+
+test("buildSystemInstruction names the chosen language outright", async () => {
+  const { buildSystemInstruction } = await loadModule();
+  const text = buildSystemInstruction("he");
+  assert.match(text, /Hebrew \(he\)/);
+  assert.match(text, /answer in Hebrew/);
+});
+
+test("buildSystemInstruction without a language follows the speaker", async () => {
+  const { buildSystemInstruction } = await loadModule();
+  const text = buildSystemInstruction(undefined);
+  assert.match(text, /language the user speaks/);
+  assert.doesNotMatch(text, /Hebrew/);
+});
+
+test("buildLiveSetupMessage carries the language into the system instruction", async () => {
+  const { buildLiveSetupMessage } = await loadModule();
+  const { setup } = buildLiveSetupMessage("gemini-3.8-live", "he");
+  assert.match(setup.systemInstruction.parts[0].text, /Hebrew/);
+  // Only the instruction changes; the measured-good modalities stay as they were.
+  assert.deepEqual(setup.generationConfig.responseModalities, ["AUDIO"]);
+});
