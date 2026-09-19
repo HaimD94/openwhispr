@@ -1,16 +1,22 @@
-import { useState, useCallback, useEffect, lazy, Suspense } from "react";
+import { useState, useCallback, useEffect, useRef, lazy, Suspense } from "react";
 import { useTranslation } from "react-i18next";
 import { useChatPersistence } from "./useChatPersistence";
 import { useChatStreaming } from "./useChatStreaming";
 import { useChatMessageSender } from "./useChatMessageSender";
 import { ChatMessages } from "./ChatMessages";
 import { ChatInput } from "./ChatInput";
+import { LiveConversationBar } from "./LiveConversationBar";
+import { useLiveConversation } from "./useLiveConversation";
 import { ChatEmptyIllustration } from "./ChatEmptyIllustration";
 import ConversationList from "./ConversationList";
 import EmptyChatState from "./EmptyChatState";
 import { ConfirmDialog } from "../ui/dialog";
 import { useDialogs } from "../../hooks/useDialogs";
 import { getCachedPlatform } from "../../utils/platform";
+import { useSettings } from "../../hooks/useSettings";
+import { useToast } from "../ui/useToast";
+import type { LiveTurn } from "../../services/geminiLiveAssistant";
+import type { Message } from "./types";
 
 const CommandSearch = lazy(() => import("../CommandSearch"));
 
@@ -35,6 +41,10 @@ export default function ChatView() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [showSearch, setShowSearch] = useState(false);
   const { confirmDialog, showConfirmDialog, hideConfirmDialog } = useDialogs();
+  const { geminiApiKey } = useSettings();
+  const { toast } = useToast();
+  // Filled once the live conversation exists, which is after the handlers below.
+  const stopLiveRef = useRef<() => void>(() => {});
 
   const persistence = useChatPersistence({
     conversationId: activeConversationId,
@@ -55,6 +65,7 @@ export default function ChatView() {
   const handleSelectConversation = useCallback(
     async (id: number) => {
       if (id === activeConversationId) return;
+      stopLiveRef.current();
       setActiveConversationId(id);
       setIsNewChat(false);
       await persistence.loadConversation(id);
@@ -63,6 +74,7 @@ export default function ChatView() {
   );
 
   const handleNewChat = useCallback(() => {
+    stopLiveRef.current();
     setActiveConversationId(null);
     setIsNewChat(true);
     persistence.handleNewChat();
@@ -83,6 +95,42 @@ export default function ChatView() {
     createConversation,
     onBeforeSend: markChatStarted,
   });
+
+  const handleLiveTurn = useCallback(
+    async ({ user, assistant }: LiveTurn) => {
+      markChatStarted();
+      if (persistence.conversationId === null) {
+        await createConversation(user || assistant);
+      }
+      const added: Message[] = [];
+      if (user)
+        added.push({ id: crypto.randomUUID(), role: "user", content: user, isStreaming: false });
+      if (assistant) {
+        added.push({
+          id: crypto.randomUUID(),
+          role: "assistant",
+          content: assistant,
+          isStreaming: false,
+        });
+      }
+      persistence.setMessages((messages) => [...messages, ...added]);
+      if (user) await persistence.saveUserMessage(user);
+      if (assistant) await persistence.saveAssistantMessage(assistant);
+    },
+    [createConversation, markChatStarted, persistence]
+  );
+
+  const live = useLiveConversation({
+    apiKey: geminiApiKey,
+    onTurn: handleLiveTurn,
+    onError: (message) =>
+      toast({
+        title: t("agentMode.live.error"),
+        description: message || undefined,
+        variant: "destructive",
+      }),
+  });
+  stopLiveRef.current = live.stop;
 
   const handleArchive = useCallback(
     async (id: number) => {
@@ -164,14 +212,23 @@ export default function ChatView() {
           {hasActiveChat ? (
             <>
               <ChatMessages messages={persistence.messages} emptyState={<NewChatEmptyState />} />
-              <ChatInput
-                agentState={streaming.agentState}
-                partialTranscript=""
-                onTextSubmit={handleTextSubmit}
-                onCancel={streaming.cancelStream}
-                autoFocus={isNewChat}
-                voiceDraft
-              />
+              {live.status !== "idle" ? (
+                <LiveConversationBar
+                  status={live.status}
+                  caption={live.caption}
+                  onStop={live.stop}
+                />
+              ) : (
+                <ChatInput
+                  agentState={streaming.agentState}
+                  partialTranscript=""
+                  onTextSubmit={handleTextSubmit}
+                  onCancel={streaming.cancelStream}
+                  autoFocus={isNewChat}
+                  voiceDraft
+                  onStartLive={live.start}
+                />
+              )}
             </>
           ) : (
             <EmptyChatState />

@@ -1255,6 +1255,14 @@
       "openNote": "فتح الملاحظة",
       "unknownTool": "أداة غير معروفة: {{name}}",
       "invalidArgs": "وسيطات غير صالحة للأداة {{name}}"
+    },
+    "live": {
+      "start": "Start live voice conversation",
+      "stop": "End live conversation",
+      "connecting": "Connecting...",
+      "listening": "Listening...",
+      "speaking": "Speaking...",
+      "error": "Live conversation failed"
     }
   },
   "noteEditor": {

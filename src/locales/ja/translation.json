@@ -3658,6 +3658,14 @@
       "openNote": "ノートを開く",
       "unknownTool": "不明なツール: {{name}}",
       "invalidArgs": "{{name}} のツール引数が無効です"
+    },
+    "live": {
+      "start": "Start live voice conversation",
+      "stop": "End live conversation",
+      "connecting": "Connecting...",
+      "listening": "Listening...",
+      "speaking": "Speaking...",
+      "error": "Live conversation failed"
     }
   },
   "assistant": {

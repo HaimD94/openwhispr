@@ -3827,6 +3827,14 @@
       "openNote": "Ouvrir la note",
       "unknownTool": "Outil inconnu : {{name}}",
       "invalidArgs": "Arguments d'outil invalides pour {{name}}"
+    },
+    "live": {
+      "start": "Start live voice conversation",
+      "stop": "End live conversation",
+      "connecting": "Connecting...",
+      "listening": "Listening...",
+      "speaking": "Speaking...",
+      "error": "Live conversation failed"
     }
   },
   "assistant": {
