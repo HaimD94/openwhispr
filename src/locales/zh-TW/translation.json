@@ -3708,6 +3708,14 @@
       "openNote": "開啟筆記",
       "unknownTool": "未知工具：{{name}}",
       "invalidArgs": "{{name}} 的工具參數無效"
+    },
+    "live": {
+      "start": "Start live voice conversation",
+      "stop": "End live conversation",
+      "connecting": "Connecting...",
+      "listening": "Listening...",
+      "speaking": "Speaking...",
+      "error": "Live conversation failed"
     }
   },
   "assistant": {

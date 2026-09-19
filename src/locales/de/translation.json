@@ -3877,6 +3877,14 @@
       "openNote": "Notiz öffnen",
       "unknownTool": "Unbekanntes Werkzeug: {{name}}",
       "invalidArgs": "Ungültige Tool-Argumente für {{name}}"
+    },
+    "live": {
+      "start": "Start live voice conversation",
+      "stop": "End live conversation",
+      "connecting": "Connecting...",
+      "listening": "Listening...",
+      "speaking": "Speaking...",
+      "error": "Live conversation failed"
     }
   },
   "assistant": {

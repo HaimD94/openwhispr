@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from "react";
-import { Mic, Square, X } from "../icons";
+import { AudioLines, Mic, Square, X } from "../icons";
 import { useTranslation } from "react-i18next";
 import { cn } from "../lib/utils";
 import { SendIcon } from "../ui/SendIcon";
@@ -22,6 +22,8 @@ interface ChatInputProps {
   className?: string;
   /** Offer a mic when the input is empty; recordings transcribe into the input. */
   voiceDraft?: boolean;
+  /** Offer a live voice conversation button next to the mic. */
+  onStartLive?: () => void;
 }
 
 function RecordingIndicator() {
@@ -61,6 +63,7 @@ export function ChatInput({
   placeholder,
   className,
   voiceDraft = false,
+  onStartLive,
 }: ChatInputProps) {
   const { t } = useTranslation();
   const { toast } = useToast();
@@ -249,27 +252,44 @@ export function ChatInput({
                 <SendIcon size={28} className="block rtl:scale-x-[-1]" />
               </button>
             ) : isIdle ? (
-              <button
-                onClick={voice.start}
-                disabled={voice.streamingOnlyProvider}
-                aria-label={t("notes.editor.transcribe")}
-                title={
-                  voice.streamingOnlyProvider
-                    ? t("agentMode.input.voiceDraftStreamingOnly")
-                    : t("notes.editor.transcribe")
-                }
-                className={cn(
-                  "flex items-center justify-center w-7 h-7 rounded-full shrink-0",
-                  GRADIENT_CIRCLE,
-                  "focus:outline-none focus-visible:ring-1 focus-visible:ring-ring/30",
-                  "transition-all duration-100",
-                  voice.streamingOnlyProvider
-                    ? "opacity-30 saturate-0 cursor-default"
-                    : "hover:brightness-110 active:scale-95"
+              <>
+                {onStartLive && (
+                  <button
+                    onClick={onStartLive}
+                    aria-label={t("agentMode.live.start")}
+                    title={t("agentMode.live.start")}
+                    className={cn(
+                      "flex items-center justify-center w-7 h-7 rounded-full shrink-0",
+                      "text-muted-foreground/80 hover:text-foreground hover:bg-foreground/8",
+                      "focus:outline-none focus-visible:ring-1 focus-visible:ring-ring/30",
+                      "transition-colors duration-100"
+                    )}
+                  >
+                    <AudioLines size={16} />
+                  </button>
                 )}
-              >
-                <Mic size={14} />
-              </button>
+                <button
+                  onClick={voice.start}
+                  disabled={voice.streamingOnlyProvider}
+                  aria-label={t("notes.editor.transcribe")}
+                  title={
+                    voice.streamingOnlyProvider
+                      ? t("agentMode.input.voiceDraftStreamingOnly")
+                      : t("notes.editor.transcribe")
+                  }
+                  className={cn(
+                    "flex items-center justify-center w-7 h-7 rounded-full shrink-0",
+                    GRADIENT_CIRCLE,
+                    "focus:outline-none focus-visible:ring-1 focus-visible:ring-ring/30",
+                    "transition-all duration-100",
+                    voice.streamingOnlyProvider
+                      ? "opacity-30 saturate-0 cursor-default"
+                      : "hover:brightness-110 active:scale-95"
+                  )}
+                >
+                  <Mic size={14} />
+                </button>
+              </>
             ) : null}
           </div>
         )}

@@ -3752,6 +3752,14 @@
       "openNote": "Открыть заметку",
       "unknownTool": "Неизвестный инструмент: {{name}}",
       "invalidArgs": "Недопустимые аргументы инструмента для {{name}}"
+    },
+    "live": {
+      "start": "Start live voice conversation",
+      "stop": "End live conversation",
+      "connecting": "Connecting...",
+      "listening": "Listening...",
+      "speaking": "Speaking...",
+      "error": "Live conversation failed"
     }
   },
   "assistant": {
