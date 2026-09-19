@@ -14,6 +14,7 @@ import { ConfirmDialog } from "../ui/dialog";
 import { useDialogs } from "../../hooks/useDialogs";
 import { getCachedPlatform } from "../../utils/platform";
 import { useSettings } from "../../hooks/useSettings";
+import { getBaseLanguageCode } from "../../utils/languageSupport";
 import { useToast } from "../ui/useToast";
 import type { LiveTurn } from "../../services/geminiLiveAssistant";
 import type { Message } from "./types";
@@ -41,7 +42,7 @@ export default function ChatView() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [showSearch, setShowSearch] = useState(false);
   const { confirmDialog, showConfirmDialog, hideConfirmDialog } = useDialogs();
-  const { geminiApiKey } = useSettings();
+  const { geminiApiKey, preferredLanguage } = useSettings();
   const { toast } = useToast();
   // Filled once the live conversation exists, which is after the handlers below.
   const stopLiveRef = useRef<() => void>(() => {});
@@ -122,6 +123,7 @@ export default function ChatView() {
 
   const live = useLiveConversation({
     apiKey: geminiApiKey,
+    language: getBaseLanguageCode(preferredLanguage),
     onTurn: handleLiveTurn,
     onError: (message) =>
       toast({

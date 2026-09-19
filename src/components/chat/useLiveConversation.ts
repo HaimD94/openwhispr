@@ -13,6 +13,8 @@ export type LiveConversationStatus = "idle" | "connecting" | "listening" | "spea
 
 interface UseLiveConversationOptions {
   apiKey: string;
+  /** Base language code from the user's settings ("he"); undefined means auto. */
+  language?: string;
   onTurn: (turn: LiveTurn) => void | Promise<void>;
   onError: (message: string) => void;
 }
@@ -53,7 +55,12 @@ interface Capture {
  * the model's reply is played aloud, and each finished exchange is handed to
  * `onTurn` so it can land in the chat. The server decides when a turn ends.
  */
-export function useLiveConversation({ apiKey, onTurn, onError }: UseLiveConversationOptions) {
+export function useLiveConversation({
+  apiKey,
+  language,
+  onTurn,
+  onError,
+}: UseLiveConversationOptions) {
   const [status, setStatus] = useState<LiveConversationStatus>("idle");
   const [caption, setCaption] = useState("");
 
@@ -153,7 +160,7 @@ export function useLiveConversation({ apiKey, onTurn, onError }: UseLiveConversa
         },
       });
       sessionRef.current = session;
-      await session.connect(apiKey);
+      await session.connect(apiKey, undefined, language);
       if (!activeRef.current) return;
 
       playerRef.current = new PcmPlayer(LIVE_OUTPUT_SAMPLE_RATE, () => {
@@ -197,7 +204,7 @@ export function useLiveConversation({ apiKey, onTurn, onError }: UseLiveConversa
       onErrorRef.current(error instanceof Error ? error.message : String(error));
       teardown();
     }
-  }, [apiKey, handleEvent, teardown]);
+  }, [apiKey, language, handleEvent, teardown]);
 
   const stop = useCallback(() => {
     if (!activeRef.current) return;
