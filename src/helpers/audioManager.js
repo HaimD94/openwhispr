@@ -237,7 +237,7 @@ function resolveReasoningRoute(
   const kind = resolveDictationRouteKind({
     cleanupReachable,
     agentReachable: agent.reachable,
-    // A translation recording never routes to the agent, so skip the scan.
+    // A translation recording ignores the wake word, so skip the scan.
     agentInvoked:
       !translationRequested &&
       !!agentName &&
