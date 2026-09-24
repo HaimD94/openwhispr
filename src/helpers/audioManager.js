@@ -2696,7 +2696,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
   // and previews stay truthful.
   _bankAssistantDirective(transcript, config, options = {}) {
     if (!this.isProcessing) return;
-    const { selectedContext, deliverySessionId } = options || {};
+    const { selectedContext, deliverySessionId, deliveryAcceptsMarkdown } = options || {};
     this.pendingAssistantConversation = {
       transcript,
       // resolveReasoningRoute mirrors an attached screenContext into
@@ -2705,7 +2705,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       // (the panel re-decides for its own request).
       screenContext: config?.rawScreenContext ?? null,
       ...(selectedContext ? { selectedContext } : {}),
-      ...(deliverySessionId ? { deliverySessionId } : {}),
+      ...(deliverySessionId ? { deliverySessionId, deliveryAcceptsMarkdown } : {}),
     };
   }
 
@@ -2731,7 +2731,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
     text,
     agentName,
     config,
-    { selectedContext, selectedText, deliverySessionId } = {}
+    { selectedContext, selectedText, deliverySessionId, deliveryAcceptsMarkdown } = {}
   ) {
     this.assertAgentAllowedByPolicy();
     const settings = getSettings();
@@ -2744,7 +2744,11 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
           config?.snippets ?? settings.snippets
         );
     const transcript = selectedText === undefined ? command : `${command}\n\n"${selectedText}"`;
-    this._bankAssistantDirective(transcript, config, { selectedContext, deliverySessionId });
+    this._bankAssistantDirective(transcript, config, {
+      selectedContext,
+      deliverySessionId,
+      deliveryAcceptsMarkdown,
+    });
     return text;
   }
 
@@ -2781,6 +2785,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       captureDisposition === "caret" && getSettings().autoPasteEnabled
         ? capture.sessionId
         : undefined;
+    const deliveryAcceptsMarkdown = capture?.acceptsMarkdown === true;
 
     if (!config?.selectionEditReachable) {
       // No in-place editor: the panel never types, so only a readable
@@ -2791,6 +2796,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
             ? capture.text
             : undefined,
         deliverySessionId,
+        deliveryAcceptsMarkdown,
       });
     }
 
@@ -2808,7 +2814,10 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
     }
 
     if (captureDisposition === "standalone" || captureDisposition === "caret") {
-      return this._bankPanelAgentCommand(text, agentName, config, { deliverySessionId });
+      return this._bankPanelAgentCommand(text, agentName, config, {
+        deliverySessionId,
+        deliveryAcceptsMarkdown,
+      });
     }
 
     if (capture?.status !== "selected") {
