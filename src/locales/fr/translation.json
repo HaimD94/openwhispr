@@ -3311,7 +3311,35 @@
       "conversationWillAppear": "La conversation apparaîtra ici...",
       "linkedEvent": "Événement lié",
       "noFolder": "Aucun dossier",
-      "participants": "Participants"
+      "participants": "Participants",
+      "table": {
+        "actions": "Actions du tableau",
+        "insertRowAbove": "Insérer une ligne au-dessus",
+        "insertRowBelow": "Insérer une ligne en dessous",
+        "insertColumnLeft": "Insérer une colonne à gauche",
+        "insertColumnRight": "Insérer une colonne à droite",
+        "deleteRow": "Supprimer la ligne",
+        "deleteColumn": "Supprimer la colonne",
+        "deleteTable": "Supprimer le tableau"
+      },
+      "format": {
+        "toolbar": "Mise en forme",
+        "withShortcut": "{{action}} ({{shortcut}})",
+        "bold": "Gras",
+        "italic": "Italique",
+        "strike": "Barré",
+        "code": "Code",
+        "textStyle": "Style de texte",
+        "paragraph": "Texte normal",
+        "heading1": "Titre 1",
+        "heading2": "Titre 2",
+        "heading3": "Titre 3",
+        "bulletList": "Liste à puces",
+        "orderedList": "Liste numérotée",
+        "taskList": "Liste de tâches",
+        "blockquote": "Citation",
+        "table": "Insérer un tableau"
+      }
     },
     "participants": {
       "attendee": "participant",

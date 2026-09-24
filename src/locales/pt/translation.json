@@ -2968,7 +2968,35 @@
       "conversationWillAppear": "A conversa aparecerá aqui...",
       "linkedEvent": "Evento vinculado",
       "noFolder": "Sem pasta",
-      "participants": "Participantes"
+      "participants": "Participantes",
+      "table": {
+        "actions": "Ações da tabela",
+        "insertRowAbove": "Inserir linha acima",
+        "insertRowBelow": "Inserir linha abaixo",
+        "insertColumnLeft": "Inserir coluna à esquerda",
+        "insertColumnRight": "Inserir coluna à direita",
+        "deleteRow": "Excluir linha",
+        "deleteColumn": "Excluir coluna",
+        "deleteTable": "Excluir tabela"
+      },
+      "format": {
+        "toolbar": "Formatação",
+        "withShortcut": "{{action}} ({{shortcut}})",
+        "bold": "Negrito",
+        "italic": "Itálico",
+        "strike": "Tachado",
+        "code": "Código",
+        "textStyle": "Estilo de texto",
+        "paragraph": "Texto normal",
+        "heading1": "Título 1",
+        "heading2": "Título 2",
+        "heading3": "Título 3",
+        "bulletList": "Lista com marcadores",
+        "orderedList": "Lista numerada",
+        "taskList": "Lista de verificação",
+        "blockquote": "Citação",
+        "table": "Inserir tabela"
+      }
     },
     "participants": {
       "attendee": "participante",

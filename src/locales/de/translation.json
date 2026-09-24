@@ -3311,7 +3311,35 @@
       "conversationWillAppear": "Gespräch wird hier angezeigt...",
       "linkedEvent": "Verknüpftes Ereignis",
       "noFolder": "Kein Ordner",
-      "participants": "Teilnehmer"
+      "participants": "Teilnehmer",
+      "table": {
+        "actions": "Tabellenaktionen",
+        "insertRowAbove": "Zeile oberhalb einfügen",
+        "insertRowBelow": "Zeile unterhalb einfügen",
+        "insertColumnLeft": "Spalte links einfügen",
+        "insertColumnRight": "Spalte rechts einfügen",
+        "deleteRow": "Zeile löschen",
+        "deleteColumn": "Spalte löschen",
+        "deleteTable": "Tabelle löschen"
+      },
+      "format": {
+        "toolbar": "Formatierung",
+        "withShortcut": "{{action}} ({{shortcut}})",
+        "bold": "Fett",
+        "italic": "Kursiv",
+        "strike": "Durchgestrichen",
+        "code": "Code",
+        "textStyle": "Textstil",
+        "paragraph": "Normaler Text",
+        "heading1": "Überschrift 1",
+        "heading2": "Überschrift 2",
+        "heading3": "Überschrift 3",
+        "bulletList": "Aufzählung",
+        "orderedList": "Nummerierte Liste",
+        "taskList": "Checkliste",
+        "blockquote": "Zitat",
+        "table": "Tabelle einfügen"
+      }
     },
     "participants": {
       "attendee": "Teilnehmer",
