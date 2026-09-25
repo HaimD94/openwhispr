@@ -219,16 +219,16 @@ export default function ChatView() {
                 emptyState={<NewChatEmptyState />}
                 contentClassName={PAGE_CONTENT_WIDTH_CLASS}
               />
-              <div className="px-3 pb-3 pt-1">
-                {live.status !== "idle" ? (
-                  <div className={PAGE_CONTENT_WIDTH_CLASS}>
-                    <LiveConversationBar
-                      status={live.status}
-                      caption={live.caption}
-                      onStop={live.stop}
-                    />
-                  </div>
-                ) : (
+              {live.status !== "idle" ? (
+                <div className={PAGE_CONTENT_WIDTH_CLASS}>
+                  <LiveConversationBar
+                    status={live.status}
+                    caption={live.caption}
+                    onStop={live.stop}
+                  />
+                </div>
+              ) : (
+                <div className="px-3 pb-3 pt-1">
                   <ChatInput
                     className={PAGE_CONTENT_WIDTH_CLASS}
                     agentState={streaming.agentState}
@@ -239,8 +239,8 @@ export default function ChatView() {
                     voiceDraft
                     onStartLive={live.start}
                   />
-                )}
-              </div>
+                </div>
+              )}
             </>
           ) : (
             <EmptyChatState />
