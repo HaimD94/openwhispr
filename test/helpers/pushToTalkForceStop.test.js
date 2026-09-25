@@ -161,12 +161,13 @@ test("a forced stop leaves the window up for the transcript still being processe
 });
 
 // The complementary half: with nothing being transcribed there is no pill to
-// keep the window open for, so it still goes away.
-test("a forced stop before recording began still hides the window", (t) => {
+// keep the window open for, so under auto-hide it still goes away.
+test("a forced stop before recording began still hides the window under auto-hide", (t) => {
   t.mock.timers.enable({ apis: ["setTimeout"] });
   t.after(() => t.mock.timers.reset());
 
   const mac = makeManager();
+  mac.manager.setFloatingIconAutoHide(true);
   mac.manager.startMacCompoundPushToTalk("Control+Option");
   t.mock.timers.tick(100); // still inside MIN_HOLD_DURATION_MS
   mac.manager.forceStopMacCompoundPush("timeout");
@@ -177,6 +178,28 @@ test("a forced stop before recording began still hides the window", (t) => {
     "cancel-dictation-preparation",
   ]);
   assert.deepEqual(mac.hides, [true]);
+});
+
+// With auto-hide off the pill is meant to stay up. A press released inside
+// MIN_HOLD_DURATION_MS (a stray tap, or Ctrl+Win+Arrow sharing a Ctrl+Win
+// hotkey) used to hide it, and only the next hotkey or the tray brought it back.
+test("a press released before recording began keeps the pill up without auto-hide", (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  t.after(() => t.mock.timers.reset());
+
+  const win = makeManager();
+  win.manager.startWindowsPushToTalk("Control+Super");
+  t.mock.timers.tick(40);
+  win.manager.handleWindowsPushKeyUp("Control+Super");
+
+  assert.deepEqual(win.channels(), ["prepare-dictation", "cancel-dictation-preparation"]);
+  assert.deepEqual(win.hides, []);
+
+  win.manager.setFloatingIconAutoHide(true);
+  win.manager.startWindowsPushToTalk("Control+Super");
+  t.mock.timers.tick(40);
+  win.manager.handleWindowsPushKeyUp("Control+Super");
+  assert.deepEqual(win.hides, [true], "auto-hide still hides it");
 });
 
 // Changing the hotkey or activation mode mid-push ends it without a release too.

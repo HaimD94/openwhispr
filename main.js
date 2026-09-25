@@ -1442,7 +1442,7 @@ async function startApp() {
               windowManager.sendStopDictation();
             } else {
               windowManager.sendCancelDictationPreparation();
-              windowManager.hideDictationPanel();
+              windowManager.hideDictationPanelAfterAbortedPress();
             }
           }
         }
@@ -1470,7 +1470,7 @@ async function startApp() {
         windowManager.sendCancelDictation();
       } else {
         windowManager.sendCancelDictationPreparation();
-        windowManager.hideDictationPanel();
+        windowManager.hideDictationPanelAfterAbortedPress();
       }
     });
 
@@ -1541,7 +1541,7 @@ async function startApp() {
               windowManager.sendStopDictation();
             } else {
               windowManager.sendCancelDictationPreparation();
-              windowManager.hideDictationPanel();
+              windowManager.hideDictationPanelAfterAbortedPress();
             }
           }
         }
@@ -1636,7 +1636,7 @@ async function startApp() {
             windowManager.sendStopDictation();
           } else {
             windowManager.sendCancelDictationPreparation();
-            windowManager.hideDictationPanel();
+            windowManager.hideDictationPanelAfterAbortedPress();
           }
         }
       }

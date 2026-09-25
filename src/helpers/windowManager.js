@@ -1095,7 +1095,7 @@ class WindowManager {
       this.sendStopDictation();
     } else {
       this.sendCancelDictationPreparation();
-      this.hideDictationPanel();
+      this.hideDictationPanelAfterAbortedPress();
     }
   }
 
@@ -1127,7 +1127,7 @@ class WindowManager {
       this.sendStopDictation();
     } else {
       this.sendCancelDictationPreparation();
-      this.hideDictationPanel();
+      this.hideDictationPanelAfterAbortedPress();
     }
   }
 
@@ -1237,7 +1237,7 @@ class WindowManager {
       this.sendStopDictation();
     } else {
       this.sendCancelDictationPreparation();
-      this.hideDictationPanel();
+      this.hideDictationPanelAfterAbortedPress();
     }
   }
 
@@ -2185,6 +2185,16 @@ class WindowManager {
     this.endOnboardingDemo();
     this.controlPanelWindow.hide();
     dockManager.setControlPanelVisible(false);
+  }
+
+  // A push-to-talk press released before recording began (under 150 ms: a
+  // stray tap, or a Windows shortcut that shares the hotkey's modifiers, like
+  // Ctrl+Win+Arrow) used to hide the pill outright. With auto-hide off the pill
+  // is meant to stay up, and nothing but the next hotkey or the tray brought it
+  // back, so it looked like it had vanished. Hide only when auto-hide is on.
+  hideDictationPanelAfterAbortedPress() {
+    if (!this._floatingIconAutoHide) return;
+    this.hideDictationPanel();
   }
 
   hideDictationPanel() {
