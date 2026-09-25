@@ -1988,6 +1988,8 @@
         "dictationSoundsDescription": "Reproduce un tono al iniciar y detener la grabación",
         "pauseMedia": "Pausar multimedia",
         "pauseMediaDescription": "Pausar la música automáticamente al iniciar el dictado",
+        "pauseMediaFirst": "Pausar multimedia antes de grabar",
+        "pauseMediaFirstDescription": "Esperar a que la música se detenga antes de abrir el micrófono, para que no entre en la grabación. La grabación empieza hasta un segundo más tarde.",
         "title": "Efectos de sonido"
       },
       "notifications": {

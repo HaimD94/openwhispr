@@ -2228,6 +2228,8 @@
         "dictationSoundsDescription": "Play a tone when recording starts and stops",
         "pauseMedia": "Pause media",
         "pauseMediaDescription": "Automatically pause music when dictation starts",
+        "pauseMediaFirst": "Pause media before recording",
+        "pauseMediaFirstDescription": "Wait for the music to stop before the microphone opens, so none of it lands in the recording. Recording starts up to a second later.",
         "title": "Sound Effects"
       },
       "notifications": {

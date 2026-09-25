@@ -1935,6 +1935,8 @@
         "dictationSoundsDescription": "録音の開始・停止時に効果音を再生",
         "pauseMedia": "メディアを一時停止",
         "pauseMediaDescription": "ディクテーション開始時に音楽を自動的に一時停止",
+        "pauseMediaFirst": "録音前にメディアを一時停止",
+        "pauseMediaFirstDescription": "マイクを開く前に音楽の停止を待ち、録音に入らないようにします。録音の開始が最大1秒遅れます。",
         "title": "サウンドエフェクト"
       },
       "notifications": {

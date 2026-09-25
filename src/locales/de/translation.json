@@ -2228,6 +2228,8 @@
         "dictationSoundsDescription": "Ton abspielen, wenn die Aufnahme startet und stoppt",
         "pauseMedia": "Medien pausieren",
         "pauseMediaDescription": "Musik beim Starten der Diktat automatisch pausieren",
+        "pauseMediaFirst": "Medien vor der Aufnahme pausieren",
+        "pauseMediaFirstDescription": "Warten, bis die Musik stoppt, bevor das Mikrofon öffnet, damit nichts davon in der Aufnahme landet. Die Aufnahme startet bis zu einer Sekunde später.",
         "title": "Soundeffekte"
       },
       "notifications": {

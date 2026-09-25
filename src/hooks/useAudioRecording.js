@@ -22,6 +22,7 @@ import {
 } from "../utils/transcriptionPreview";
 import { canStartDictation } from "../utils/dictationReadiness";
 import { waitForVisualFrames } from "../utils/visualFrame";
+import { pauseMediaBeforeCapture } from "../utils/pauseMediaBeforeCapture";
 import { resolveLifecycleInputKind } from "../helpers/dictationRouting";
 import { createAssistantResponseDelivery } from "../helpers/assistantResponseDelivery";
 import { recordCleanupFailure } from "../stores/cleanupFailureStore";
@@ -130,6 +131,7 @@ export const useAudioRecording = (toast, options = {}) => {
       stopRequestedDuringStartRef.current = false;
       pushForceStoppedRef.current = false;
       let recordingStarted = false;
+      let pausedMediaBeforeStart = false;
       try {
         if (!audioManagerRef.current) return false;
         const policyState = usePolicyStore.getState();
@@ -156,6 +158,18 @@ export const useAudioRecording = (toast, options = {}) => {
         setIsAssistantVoice(voiceAgentRequested);
         await waitForVisualFrames();
         if (preparationGeneration !== preparationGenerationRef.current) return false;
+
+        // With "pause before recording" on, media has to be quiet before the
+        // mic opens: the capture keeps pre-roll from the moment the device
+        // opens, and pausing after the start let a second of music in.
+        if (getSettings().pauseMediaOnDictation && getSettings().pauseMediaBeforeRecording) {
+          pausedMediaBeforeStart = true;
+          const { timedOut } = await pauseMediaBeforeCapture(
+            window.electronAPI?.pauseMediaPlayback
+          );
+          if (timedOut) logger.warn("Media pause outlived its wait cap", {}, "media");
+          if (preparationGeneration !== preparationGenerationRef.current) return false;
+        }
 
         // Start acquisition only after the compact thinking frame has reached
         // the compositor. startRecording() joins this prepared capture, so the
@@ -241,6 +255,7 @@ export const useAudioRecording = (toast, options = {}) => {
         // until the next hotkey press. Honor it now that we started.
         if (didStart && stopRequestedDuringStartRef.current) {
           window.electronAPI?.unregisterCancelHotkey?.();
+          if (pausedMediaBeforeStart) window.electronAPI?.resumeMediaPlayback?.();
           // Cue semantics mirror performStopRecording: unconditional for
           // streaming, gated on the stop landing for batch.
           if (audioManagerRef.current.getState().isStreaming) {
@@ -255,11 +270,15 @@ export const useAudioRecording = (toast, options = {}) => {
         // A quick tap can end the recording inside the start call itself (deferred
         // streaming stop) — don't pause media for a recording that already ended. See #1060.
         if (didStart && audioManagerRef.current.getState().isRecording) {
-          if (getSettings().pauseMediaOnDictation) {
+          if (getSettings().pauseMediaOnDictation && !pausedMediaBeforeStart) {
             window.electronAPI?.pauseMediaPlayback?.();
           }
           window.electronAPI?.registerCancelHotkey?.("Escape");
           void playStartCue();
+        } else if (pausedMediaBeforeStart) {
+          // The recording ended inside the start call, possibly before any
+          // state change reported it as recording; resume is idempotent.
+          window.electronAPI?.resumeMediaPlayback?.();
         }
 
         return didStart;
@@ -271,6 +290,9 @@ export const useAudioRecording = (toast, options = {}) => {
         if (stopRequestedDuringStartRef.current && !recordingStarted) setIsStopping(false);
         stopRequestedDuringStartRef.current = false;
         if (!recordingStarted) {
+          // Media paused ahead of a start that never happened would otherwise
+          // stay paused: resume only follows a recording that really ran.
+          if (pausedMediaBeforeStart) window.electronAPI?.resumeMediaPlayback?.();
           setIsPreparing(false);
           setIsAssistantVoice(false);
           // Covers every exit above that never started a recording — the

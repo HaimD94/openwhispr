@@ -1914,6 +1914,8 @@
         "dictationSoundsDescription": "Tocar um som ao iniciar e parar a gravação",
         "pauseMedia": "Pausar mídia",
         "pauseMediaDescription": "Pausar a música automaticamente ao iniciar o ditado",
+        "pauseMediaFirst": "Pausar mídia antes de gravar",
+        "pauseMediaFirstDescription": "Esperar a música parar antes de abrir o microfone, para que ela não entre na gravação. A gravação começa até um segundo depois.",
         "title": "Efeitos sonoros"
       },
       "notifications": {

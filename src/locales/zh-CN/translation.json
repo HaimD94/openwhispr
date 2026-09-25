@@ -1935,6 +1935,8 @@
         "dictationSoundsDescription": "在录音开始和停止时播放提示音",
         "pauseMedia": "暂停媒体",
         "pauseMediaDescription": "开始听写时自动暂停音乐",
+        "pauseMediaFirst": "录音前暂停媒体",
+        "pauseMediaFirstDescription": "在打开麦克风前等待音乐停止，避免音乐进入录音。录音最多延迟一秒开始。",
         "title": "音效"
       },
       "notifications": {

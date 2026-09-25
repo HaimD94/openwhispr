@@ -1240,6 +1240,8 @@ export default function SettingsPage({
     setAudioCuesEnabled,
     pauseMediaOnDictation,
     setPauseMediaOnDictation,
+    pauseMediaBeforeRecording,
+    setPauseMediaBeforeRecording,
     showTranscriptionPreview,
     setShowTranscriptionPreview,
     autoPasteEnabled,
@@ -3172,6 +3174,21 @@ export default function SettingsPage({
                     <Toggle checked={pauseMediaOnDictation} onChange={setPauseMediaOnDictation} />
                   </SettingsRow>
                 </SettingsPanelRow>
+                {pauseMediaOnDictation && (
+                  <SettingsPanelRow>
+                    <SettingsRow
+                      label={t("settingsPage.general.soundEffects.pauseMediaFirst")}
+                      description={t(
+                        "settingsPage.general.soundEffects.pauseMediaFirstDescription"
+                      )}
+                    >
+                      <Toggle
+                        checked={pauseMediaBeforeRecording}
+                        onChange={setPauseMediaBeforeRecording}
+                      />
+                    </SettingsRow>
+                  </SettingsPanelRow>
+                )}
               </SettingsPanel>
             </div>
 
